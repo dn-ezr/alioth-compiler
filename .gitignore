@@ -1,0 +1,3 @@
+obj/*.obj
+obj/*.o
+.vscode/*
