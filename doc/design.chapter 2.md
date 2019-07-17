@@ -94,7 +94,9 @@ You can write configuration file to tell compiler which resource you want to pac
 
 You can use compiler to install, pack and publish packages.
 
-Package consists of parts, each part holds a list of resources to be shared. There are two main parts, they are main and dev.
+There are two important attributes for package, which are "package name" and "section name".
+
+Packages with the same package name will be merged when installing, use section name to manage different resources each time.
 
 Startup the compiler in resources server mode as a daemon process and run command to host a package, the resources server will send meta message to other known resources server.
 
