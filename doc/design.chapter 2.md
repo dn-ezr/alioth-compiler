@@ -10,10 +10,12 @@ date: 2019/07/12
   - [2.1. Concept of space](#21-Concept-of-space)
     - [2.1.1. Main Spaces](#211-Main-Spaces)
     - [2.1.2. Sub Spaces](#212-Sub-Spaces)
+    - [2.1.3. Extra Sub Space](#213-Extra-Sub-Space)
   - [2.2. Concept of **source code document**](#22-Concept-of-source-code-document)
   - [2.3. Concept of **module**](#23-Concept-of-module)
   - [2.4. Concept of **target**](#24-Concept-of-target)
   - [2.5. Concept of **package**](#25-Concept-of-package)
+  - [2.6. Structure of Space Engine](#26-Structure-of-Space-Engine)
 
 ## 2.1. Concept of space
 
@@ -62,6 +64,10 @@ Sub spaces are spaces those who have to be hosted by a father space which must b
 
   Sub-spaces used to contain source code documents written by user.
 
+### 2.1.3. Extra Sub Space
+
+Spaces listed above are the standard abstract spaces, there maybe other spaces existing but not to be the standard abstract spaces. There is a space type named extra space which is used to represent these spaces.
+
 ## 2.2. Concept of **source code document**
 
 Any abstract input stream who contains a correctly formatted **module signature** before any other available syntax structure is found is called source code document.
@@ -88,8 +94,38 @@ You can write configuration file to tell compiler which resource you want to pac
 
 You can use compiler to install, pack and publish packages.
 
-There are two install mode of one package, they are **release** and **development**.Each mode has a list of **part**s, and each **part** has a list of resources to be shared.
+Package consists of parts, each part holds a list of resources to be shared. There are two main parts, they are main and dev.
 
 Startup the compiler in resources server mode as a daemon process and run command to host a package, the resources server will send meta message to other known resources server.
 
 Packages referenced by dependencies of modules which are written in a remote format will be installed automatically and kept updated each time compiler will use them, this transaction is controlled by `Compiler` engine but the remote communication between two compilers is done by `Space Engine`.
+
+## 2.6. Structure of Space Engine
+
+The Space Engine is one of the most important modules of the compiler of the Alioth programming language, it controls all data source.
+
+To the lower layer, the space engine use several protocols to transmiss documents. To the higher layer, the space engine exposes unified application programming interfaces to access data sources.
+
+There are two kinds of abstract objects that space engine should provide to the higher layer to manage the data sources.
+
+- Abstract Space
+
+  Abstract Space is used to represent a container for documents and other abstract spaces.
+  Available methods on AbstractSpace as follow:
+  - open
+  
+    Open the data connection to this abstract space.
+  - enum
+
+    Enumerate data sources in this abstract space including documents and sub-spaces.
+  - close
+
+    Close the data connection to this abstract space.
+  - create
+
+    Create a new sub-space of certain type.
+- Abstract File
+
+  The Abstract File is used to represent an object which carries some attributes and is available for reading or writting.
+
+  There should be available methods ready for call to manage Abstract Files. Such as creating, deleting, opening, closing or doing IO operation.
