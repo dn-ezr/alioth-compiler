@@ -32,8 +32,8 @@ This manual is written for users of the compiler of the Alioth programming langu
     - [2.3.4. other section](#234-other-section)
     - [2.3.5. Locating](#235-Locating)
   - [2.4. Repository](#24-Repository)
-  - [2.4.1. Static repository](#241-Static-repository)
-  - [2.4.2. Remote repository](#242-Remote-repository)
+    - [2.4.1. Static repository](#241-Static-repository)
+    - [2.4.2. Remote repository](#242-Remote-repository)
 - [3. Compiling targets](#3-Compiling-targets)
   - [3.1. Auto target](#31-Auto-target)
   - [3.2. Excutable target](#32-Excutable-target)
@@ -46,6 +46,8 @@ This manual is written for users of the compiler of the Alioth programming langu
     - [4.1.2 Install](#412-Install)
     - [4.1.3. Update](#413-Update)
     - [4.1.4 Remove](#414-Remove)
+    - [4.1.5. Publish](#415-Publish)
+  - [4.2. Repository managing](#42-Repository-managing)
 - [Appendix A: Table of command line options](#Appendix-A-Table-of-command-line-options)
   - [Target indicators](#Target-indicators)
 
@@ -188,11 +190,11 @@ Any dependency indicates the **main** section of the package.
 
 Repository is the container of packages. 
 
-## 2.4.1. Static repository
+### 2.4.1. Static repository
 
 There always a static repository which is used to host packages installed locally, there is no need to run a compiler to host it.
 
-## 2.4.2. Remote repository
+### 2.4.2. Remote repository
 
 You can host your own repository on your server. Remote repositories can be located via `URI`, scheme is `alioth://`.
 
@@ -296,6 +298,8 @@ The target name is needed since the format is defined.
 
 The other kind of function of this compiler is to manage resources.
 
+> Note that not all functions about managing opened, consider these features are coming soon in the future version.
+
 ## 4.1. Package managing
 
 Compiler of the Alioth programming can be used to manage packages.
@@ -326,7 +330,8 @@ You can edit the config file named `packages.json` in the doc sub space to speci
         "resources" : [
           "lib/*.so",
           "arc/*.a",
-          "inc/*.alioth"
+          "inc/*.alioth",
+          "doc/license"
         ],
         "dependencies" : [/** If any dependency of this package is another alioth package, describe it here, alioth will help you to manage it. */],
         "scripts" : {
@@ -357,6 +362,10 @@ You may pack more than one sections into one package file :
 
 alioth package: stdlib-linux-x86_64 main doc
 ~~~
+
+Nodejs defined its concepts about the file `package.json` of course, we are different.
+
+The packages of Alioth programming language are mainly play the role of libraries, as for applications we believe that developers prefer their own way to publish their products.
 
 ### 4.1.2 Install
 
@@ -410,6 +419,61 @@ alioth remove: stdlib-linux-x86_64 - main dev doc
 
 The main section could be dependency of other packages, if it happens compiler will ask if you really want to remove that section.
 
+Give the command without sections specified, compiler will remove the whole package.
+
+~~~bash
+#!/bin/bash
+
+alioth remove: stdlib-linux-x86_64
+~~~
+
+### 4.1.5. Publish
+
+You can publish your packages to remote repositories, so that people can find and install your packages easier.
+
+There're two mode to publish your packages.
+
+- online mode
+
+  Compiler send meta informations only, and then setup a host ready to process requests. When the package is requested, remote repository forwards the request to the compiler host. Data connection build up between compiler host and the resource client to transfer package.
+- offline mode
+
+  Compiler send the entire package to the remote repository, let the remote repository dispatch it.
+
+Before you can publish your packages to the remote repository, you need an account with the right privileges. We're going to talk about this in the next section.
+
+Now, let see the command to publish your package.
+
+~~~bash
+#!/bin/bash
+
+alioth publish: stdlib-linux-x86_64 main - alioth://localhost/Alioth
+~~~
+
+The command above publish your package to the remote repository. Compiler will choose the mode of publishing.
+
+~~~bash
+#!/bin/bash
+
+alioth publish: stdlib-linux-x86_64 main - alioth://cdn.us.alioth.org/Alioth --offline
+~~~
+
+The command above publish your package to the remote repository, force to use the offline mode.
+
+The corresponding option to force to use the online mode is `--online`.
+
+The command format using the indicator `publish:` as follow:
+
+~~~
+publish: <PACKAGE-NAME> <SECTIONS> - <REPOSITORY> [--online|--offline]
+~~~
+
+There is only one daemon can be started to host packages published, commands executed after that do not start a new process, they add the job to the daemon.
+
+## 4.2. Repository managing
+
+> [TODO]
+
 # Appendix A: Table of command line options
 
 ## Target indicators
@@ -421,6 +485,8 @@ The main section could be dependency of other packages, if it happens compiler w
 |`s:`|`s: <TARGET-NAME>`|`s: Hello`|Static link library target indicator|
 |`d:`|`d: <TARGET-NAME>`|`d: Hello`|Dynamic link library target indicator|
 |`v:`|`v: <TARGET-NAME>`|`v: Validate`|Validate target indicator|
-|`package:`|`package: <PACKAGE-NAME> <SECTION-NAME>`|`package: OpenGL main`|Package target indicator|
+|`package:`|`package: <PACKAGE-NAME> <SECTIONS>`|`package: OpenGL main`|Package target indicator|
 |`install:`|`install: <PACKAGE> - <SECTIONS>`|`install: pack.apkg - main doc`|Section install target indicator|
 |`update:`|`update: <PACKAGE> [- <VERSION>]`|`update: stdlib - 3.7.^`|Package update target indicator|
+|`remove:`|`remove: <PACKAGE> [- <SECTION>]`|`remove: stdlib-linux-x86_64 - main dev doc`|Remove sections from packages installed|
+|`publish:`|`publish: <PACKAGE-NAME> <SECTIONS> - <REPOSITORY>`|`publish: stdlib-linux-x86_64 main alioth://localhost/Alioth`|Publish package to remote repository|
