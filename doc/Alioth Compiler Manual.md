@@ -11,45 +11,55 @@ This manual is written for users of the compiler of the Alioth programming langu
 > Note:  
 > &nbsp;&nbsp;&nbsp;&nbsp;The old version of this compiler was named "**aliothc**", the last letter 'c' means "**compiler**". But compiling is no more the only function of this program for now, so the program is renamed as "**alioth**", please type the correct command according the version of compiler you're using.
 
-- [1. About this manual](#1-About-this-manual)
-- [2. Basic concepts](#2-Basic-concepts)
-  - [2.1. Target](#21-Target)
-    - [2.1.1. Auto](#211-Auto)
-    - [2.1.2. Executable](#212-Executable)
-    - [2.1.3. Static](#213-Static)
-    - [2.1.4. Dynamic](#214-Dynamic)
-    - [2.1.5. Validate](#215-Validate)
-    - [2.1.6. Repository](#216-Repository)
-    - [2.1.7. Package](#217-Package)
-  - [2.2. Space](#22-Space)
-    - [2.2.1. Main space](#221-Main-space)
-    - [2.2.2. Sub space](#222-Sub-space)
-    - [2.2.3. Extra space](#223-Extra-space)
-  - [2.3. Package](#23-Package)
-    - [2.3.1. Sections](#231-Sections)
+- [1. About this manual](#1-about-this-manual)
+- [2. Basic concepts](#2-basic-concepts)
+  - [2.1. Target](#21-target)
+    - [2.1.1. Auto](#211-auto)
+    - [2.1.2. Executable](#212-executable)
+    - [2.1.3. Static](#213-static)
+    - [2.1.4. Dynamic](#214-dynamic)
+    - [2.1.5. Validate](#215-validate)
+    - [2.1.6. Repository](#216-repository)
+    - [2.1.7. Package](#217-package)
+  - [2.2. Space](#22-space)
+    - [2.2.1. Main space](#221-main-space)
+    - [2.2.2. Sub space](#222-sub-space)
+    - [2.2.3. Extra space](#223-extra-space)
+  - [2.3. Package](#23-package)
+    - [2.3.1. Sections](#231-sections)
     - [2.3.2. main section](#232-main-section)
     - [2.3.3. dev section](#233-dev-section)
     - [2.3.4. other section](#234-other-section)
-    - [2.3.5. Locating](#235-Locating)
-  - [2.4. Repository](#24-Repository)
-    - [2.4.1. Static repository](#241-Static-repository)
-    - [2.4.2. Remote repository](#242-Remote-repository)
-- [3. Compiling targets](#3-Compiling-targets)
-  - [3.1. Auto target](#31-Auto-target)
-  - [3.2. Excutable target](#32-Excutable-target)
-  - [3.3. Static target](#33-Static-target)
-  - [3.4. Dynamic target](#34-Dynamic-target)
-  - [3.5. Validate target](#35-Validate-target)
-- [4. Managing targets](#4-Managing-targets)
-  - [4.1. Package managing](#41-Package-managing)
-    - [4.1.1. Pack](#411-Pack)
-    - [4.1.2 Install](#412-Install)
-    - [4.1.3. Update](#413-Update)
-    - [4.1.4 Remove](#414-Remove)
-    - [4.1.5. Publish](#415-Publish)
-  - [4.2. Repository managing](#42-Repository-managing)
-- [Appendix A: Table of command line options](#Appendix-A-Table-of-command-line-options)
-  - [Target indicators](#Target-indicators)
+    - [2.3.5. Locating](#235-locating)
+  - [2.4. Repository](#24-repository)
+    - [2.4.1. Static repository](#241-static-repository)
+    - [2.4.2. Remote repository](#242-remote-repository)
+- [3. Compiling targets](#3-compiling-targets)
+  - [3.1. Auto target](#31-auto-target)
+  - [3.2. Excutable target](#32-excutable-target)
+  - [3.3. Static target](#33-static-target)
+  - [3.4. Dynamic target](#34-dynamic-target)
+  - [3.5. Validate target](#35-validate-target)
+    - [3.5.1. Interactive mode](#351-interactive-mode)
+- [4. Managing targets](#4-managing-targets)
+  - [4.1. Package managing](#41-package-managing)
+    - [4.1.1. Pack](#411-pack)
+    - [4.1.2 Install](#412-install)
+    - [4.1.3. Update](#413-update)
+    - [4.1.4 Remove](#414-remove)
+    - [4.1.5. Publish](#415-publish)
+  - [4.2. Repository managing](#42-repository-managing)
+- [Appendix A: Table of command line options](#appendix-a-table-of-command-line-options)
+  - [Target indicators](#target-indicators)
+  - [Options](#options)
+- [Appendix B: Configurations and config files](#appendix-b-configurations-and-config-files)
+  - [Diagnostic](#diagnostic)
+  - [Package](#package)
+  - [Packages](#packages)
+  - [Provide](#provide)
+  - [Repository](#repository)
+  - [Space](#space)
+  - [Targets](#targets)
 
 # 2. Basic concepts
 
@@ -173,7 +183,7 @@ There are two situation where you have to express the location of a package, one
 
 Once a package is installed locally, just a package name is enough to locate a package.
 
-Packages in remote repositories or file system can be referred by uri, unless you forbid it, compiler will install those packages automatically.
+Packages in remote repositories or file system can be referred by uri; Unless you forbid it, compiler will install those packages automatically.
 
 Generally the package name can be any non-empty string, but colon can not be one character of this string, because it is used to indicate the version of the package when locating packages.
 
@@ -188,7 +198,7 @@ Any dependency indicates the **main** section of the package.
 
 ## 2.4. Repository
 
-Repository is the container of packages. 
+Repository is the container of packages.
 
 ### 2.4.1. Static repository
 
@@ -294,6 +304,26 @@ alioth v: check
 
 The target name is needed since the format is defined.
 
+### 3.5.1. Interactive mode
+
+Generally, this target is started by IDE to provide the dynamic semantic diagnostic service. Sometimes, some of the source code documents are not saved to disk yet, compiler cannot read the lastest version of source code from disk, so that it may be gives diagnostics informations useless.
+
+Use the `interactive` mode to solve this problem.
+
+~~~bash
+#!/bin/bash
+
+alioth v: check -- 0/1
+~~~
+
+The command shown above starts the compiler in the interactive mode, the option `-- 0/1` means use the standard input and output streams to communicate with IDE.
+
+In the `interactive` mode, compiler will send a asking package to the output stream to ask whether the IDE have the resource the compiler needs.
+
+like this: `{"cmd":"requestContent","url":"./src/hello.alioth"}` and if the IDE do have contents of the document the compiler asked, it should respond those contents to the compiler: `{"cmd":"respondContent","status":"success","data":"...."}`.
+
+Otherwise, if the IDE do not have the content of the resource which the compiler asked, it returns a failure package to the compiler, and then, compiler should fallback to the normal method to access this resource it needs, for example, reading from the filesystem.
+
 # 4. Managing targets
 
 The other kind of function of this compiler is to manage resources.
@@ -325,22 +355,15 @@ You can edit the config file named `packages.json` in the doc sub space to speci
       The object name is the package name.*/
   "stdlib-linux-x86_64" : {
     "version" : "1.3.47", /** The version number is formatted as `major.minor.patch`.*/
+    "license" : "doc/license",
     "sections" : {
       "main" : {
         "resources" : [
           "lib/*.so",
           "arc/*.a",
-          "inc/*.alioth",
-          "doc/license"
+          "inc/*.alioth"
         ],
         "dependencies" : [/** If any dependency of this package is another alioth package, describe it here, alioth will help you to manage it. */],
-        "scripts" : {
-          "pre-install" : "",
-          "post-install" : "",
-          "pre-remove" : "",
-          "post-remove" : "",
-          "pre-update" : "",
-        }
       }, "dev" : {
         "resources" : [
           "inc/*.alioth",
@@ -490,3 +513,284 @@ There is only one daemon can be started to host packages published, commands exe
 |`update:`|`update: <PACKAGE> [- <VERSION>]`|`update: stdlib - 3.7.^`|Package update target indicator|
 |`remove:`|`remove: <PACKAGE> [- <SECTION>]`|`remove: stdlib-linux-x86_64 - main dev doc`|Remove sections from packages installed|
 |`publish:`|`publish: <PACKAGE-NAME> <SECTIONS> - <REPOSITORY>`|`publish: stdlib-linux-x86_64 main alioth://localhost/Alioth`|Publish package to remote repository|
+
+## Options
+
+|option|format|instance|comment|
+|:--|:--|:--|:--|
+|`--`|`-- <I/O>`|`-- 0/1`|Open the interactive mode, specify streams to do the I/O operation|
+
+# Appendix B: Configurations and config files
+
+## Diagnostic
+
+Diagnostics informations are given formatted, you may modify the config file `Diagnostic.json` to customize the format the diagnostics informations will be given in, even the language.
+
+~~~json
+{
+  "format" : "%p:%l:%c:(%E) %i -- %s",
+  "languages" : {
+    "chinese" : {
+      "1" : {
+        "sev" : 1,
+        "beg" : "b0",
+        "end" : "e2",
+        "msg" : "方法'%R1'没有终结指令"
+      }
+    }
+  }
+}
+~~~
+
+There are two major sections in this config file, the first one is that named "format".
+
+It is simply a string describes how do you want the compiler to organize the informations about the diagnostics.
+
+Tokens starting with '%' are place-holders, stand for variables, here is a table of usable variables:
+
+|token|variable|
+|---|---|
+|`%c`|column number|
+|`%C`|column number at the end of the code involved|
+|`%d`|date formated as `YYYY/MM/DD`|
+|`%E`|error code|
+|`%i`|diagnostics informaton|
+|`%l`|line number|
+|`%L`|line number at the end of the code involved|
+|`%p`|path to the document|
+|`%P`|path to the folder who contains the document|
+|`%u`|url to the document|
+|`%U`|uri to the document|
+|`%s`|severity in string|
+|`%S`|severity in number|
+|`%t`|time formated as `hh/mm/ss`|
+|`%T`|timestamp in number|
+
+The second major section is the section named 'languages', which is a object, every key is a name of one language, and every corresponding object is a set of format descriptor, each of these descriptors describes format of a corresponding diagnostic information of certain error code.
+
+~~~json
+"1" : {
+  "sev" : 1,
+  "beg" : "b0",
+  "end" : "e2",
+  "msg" : "方法'%R1'没有终结指令"
+}
+~~~
+
+The key of one descriptor is the error code written in string.
+
+All attributes inside this descriptor are necessary, descriptions as follow:
+
+|attribute|value|meaning|comment|
+|---|---|---|---|
+|`sev`|`<INT>: 1 ~ 4`|severity|1:Error<br/>2:Warning<br/>3:Information<br/>4:Hint|
+|`beg`|`n`<br/>`b<INT>`<br/>`e<INT>`|The beginning position of source code involved by this diagnostic information|`n` means there's no beginning position<br/>As for other two format, they use a boundary of one token as the position. The starting letter specifies whether the beginning or the ending of the token will be used. The number right following the letter is the index of the token.|
+|`end`|`n`<br/>`b<INT>`<br/>`e<INT>`|The ending position of source code involved by this diagnostic information|This attribute takes the same method to express the position as the attribute `beg`.|
+|`msg`|`<string>`|This string is a string with place-holders in it, tells the compiler how to organize the involved tokens to a human readable information.|This syntax will be talked about soon enough after this table.|
+
+The attribute `msg` is a formatted string, describes hwo the way to organize `tokens` involved to this diagnostics information. Compiler will grab certain number of tokens according to the error code, and you can refer to them using a index, for example `%2` means the third token involved, `%1` means the second, and so on; You may add a color hint to specify the color of one token when is will be printed, for example `%R0` means print the first token involved, in a red color if possible.
+
+Here's a table of color hint available in the formatted string.
+
+|hint|color|
+|---|---|
+|`r`|red|
+|`R`|red & **blob**|
+|`g`|green|
+|`G`|green & **blob**|
+|`b`|blue|
+|`B`|blue & **blob**|
+|`y`|yellow|
+|`Y`|yellow & **blob**|
+|`p`|purple|
+|`P`|purple & **blob**|
+|`c`|cyan|
+|`C`|cyan & **blob**|
+
+## Package
+
+When installing a package from file system or from a remote repository, a config file named `package.json` will be generated, informations about this package will be written in it.
+
+~~~json
+{
+  "name" : "<string>:package name",
+  "version" : "<string>:version number, formatted as x.y.z",
+  "repository" : "<uri>: the source where the package is from",
+  "publisher" : "<email>: This email is used to identify two packages with the same name",
+  "authors" : [/*names of authors and their email addresses.*/],
+  "license" : "path to the license file",
+  "sections" : {
+      "main" : {
+        "resources" : [/** Paths to resources in this section */],
+        "dependencies" : [/** If any dependency of this package is another alioth package, describe it here, alioth will help you to manage it. */]
+      }
+    }
+}
+~~~
+
+If the name and the publisher of two packages are the same, these packages are two copy of one original package.
+
+If this package is installed from remote repository, the field `repository` is given; When updating this package, the repository given in this config file will be searched first.
+
+Example:
+
+~~~json
+{
+  "name" : "http-linux-x86_64",
+  "version" : "1.3.14",
+  "repository" : "alioth://w3school.org/w3school",
+  "author" : [
+    "bob <bob@gmail.com>",
+    "eric <eric@gmail.com>",
+    "jack <jack@gmail.com>"
+  ],
+  "publisher" : "w3school@gmail.com",
+  "license" : "doc/license.txt",
+  "sections" : {
+    "main" : {
+      "resources" : [
+        "arc/*.a",
+        "inc/*.alioth"
+      ],
+      "dependencies" : [
+        "alioth://alioth.org/alioth/stdlib-linux-x86_64:^"
+      ]
+    }, "doc" : {
+      "resources" : [
+        "doc/manual.md",
+        "doc/api.md"
+      ]
+    }
+  }
+}
+~~~
+
+## Packages
+
+In workspace, you may pack resources into packages. Use the config file `packages.json` to specify options generating packages.
+
+The config file `packages.json` could contain configurations for more than one package, that means you can pack more than one package from your workspace.
+
+~~~json
+{
+  "stdlib-linux-x86_64" : {
+    "version" : "1.3.47", /** The version number is formatted as `major.minor.patch`.*/
+    "license" : "doc/license",
+    "authors" : [/*names of authors and their email addresses.*/],
+    "sections" : {
+      "main" : {
+        "resources" : [
+          "lib/*.so",
+          "arc/*.a",
+          "inc/*.alioth"
+        ],
+        "dependencies" : [/** If any dependency of this package is another alioth package, describe it here, alioth will help you to manage it. */],
+      }, "dev" : {
+        "resources" : [
+          "inc/*.alioth",
+          "src/*",
+          "makefile"
+        ]
+      }, "doc" : {
+        "resources" : [
+          "doc/manual.md"
+        ]
+      }
+    }
+  }
+}
+~~~
+
+## Provide
+
+The config file `provide.json` is automatically generated when compiling targets, and will be packed automatically.
+
+The file `provide.json` describes which modules the targets provides.
+
+Example:
+
+~~~json
+{
+  "static" : {
+    "arc/libstdlib.a" : [
+      /** module names the target provides */
+    ]
+  }, "dynamic" : {
+    "lib/libstdlib.so" : [
+      "net",
+      "memory",
+      "string",
+      "tuple",
+      "map",
+      "list"
+    ]
+  }
+}
+~~~
+
+## Repository
+
+> [TODO]
+
+## Space
+
+Generally, this file is automatically generated, the only field filled is the field `modules`; This field is used to speed up the dependencies closing.
+
+You can manually insert the `mapping` section to map sub-spaces to other locations.
+
+~~~json
+{
+  "mapping" : {
+    "bin" : "ftps://company.org/target/bin/",
+    "inc" : "http://company.org/libraries/inc/",
+    "src" : "./main/src/"
+  }, "modules" : {
+    "iTalk" : {
+      "deps": [
+        {
+          "alias" : "",
+          "name" : "io",
+          "from" : ""
+        } , {
+          "alias": "this",
+          "name": "net",
+          "from" : ""
+        } , {
+          "alias": "",
+          "name": "memory"
+        } , {
+          "alias": "",
+          "name": "string"
+        }
+      ],
+      "code" : [
+        {
+          "mtim" : 1558544000,
+          "name" : "talk.alioth",
+          "size" : 1189,
+          "space" : 64
+        },{
+          "mtim" : 1558541185,
+          "name" : "talk.alioth",
+          "size" : 470,
+          "space" : 16
+        }
+      ]
+    }
+  }
+}
+~~~
+
+If the `mapping` section is modified, the config file `space.json` will be packed when packing package.
+
+The rule to map sub-spaces is simple, just write down uri which the compiler can handle.
+
+## Targets
+
+The config file `target.json` can be used to specify some attributes for targets.
+
+You may change the target platform of this target, change the link rule of the target etc.
+
+But this function is currently not supported.
+
+> [TODO]
