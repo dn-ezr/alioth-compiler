@@ -49,6 +49,10 @@ This manual is written for users of the compiler of the Alioth programming langu
     - [4.1.4 Remove](#414-remove)
     - [4.1.5. Publish](#415-publish)
   - [4.2. Repository managing](#42-repository-managing)
+- [5. Other targets](#5-other-targets)
+  - [5.1. Help target](#51-help-target)
+  - [5.2. Version target](#52-version-target)
+  - [5.3. Init target](#53-init-target)
 - [Appendix A: Table of command line options](#appendix-a-table-of-command-line-options)
   - [Target indicators](#target-indicators)
   - [Options](#options)
@@ -497,6 +501,44 @@ There is only one daemon can be started to host packages published, commands exe
 
 > [TODO]
 
+# 5. Other targets
+
+Other targets provedes function like printing the version information, printing the help page etc.
+
+These targets are also exist in other command line tools, so we keep their indicators look normal.
+
+## 5.1. Help target
+
+To print the help page, use the indicator `--help`, compiler will discard any other targets and print the help page.
+
+~~~bash
+#!/bin/bash
+
+alioth --help
+~~~
+
+## 5.2. Version target
+
+To print the version informations, use the indicator `--version`, compiler will discard any other targets and print the version informations.
+
+~~~bash
+#!/bin/bash
+
+alioth --version
+~~~
+
+## 5.3. Init target
+
+To initialize a project structure in a directory, use the indicator `--init <PACKAGE>`, compiler will take one variable as the package name to initialize the project structure.
+
+~~~bash
+#!/bin/bash
+
+alioth --init "Hello World"
+~~~
+
+A directory named `Hello World` will be created, and config files such as `packages.json`, `makefile` will be generated.
+
 # Appendix A: Table of command line options
 
 ## Target indicators
@@ -519,6 +561,11 @@ There is only one daemon can be started to host packages published, commands exe
 |option|format|instance|comment|
 |:--|:--|:--|:--|
 |`--`|`-- <I/O>`|`-- 0/1`|Open the interactive mode, specify streams to do the I/O operation|
+|`--work`|`--work <PATH>`|`--work ./demo/`|Set the path of the workspace|
+|`--root`|`--root <PATH>`|`--root /usr/lib/alioth`|Set the path of the root space|
+|`--help`|`--help`|`--help`|Print the help page and exit|
+|`--version`|`--version`|`--version`|Print the version information and exit|
+|`--init`|`--init <PACKAGE>`|`--init HelloWorld`|Initialize a project structure for package `HelloWorld`|
 
 # Appendix B: Configurations and config files
 
