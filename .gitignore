@@ -1,3 +1,4 @@
 obj/*.obj
 obj/*.o
+bin/*
 .vscode/*

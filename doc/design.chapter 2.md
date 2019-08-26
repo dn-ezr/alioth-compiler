@@ -6,16 +6,19 @@ date: 2019/07/12
 
 # 2. Chapter Two: Space and Space engine
 
-- [2. Chapter Two: Space and Space engine](#2-Chapter-Two-Space-and-Space-engine)
-  - [2.1. Concept of space](#21-Concept-of-space)
-    - [2.1.1. Main Spaces](#211-Main-Spaces)
-    - [2.1.2. Sub Spaces](#212-Sub-Spaces)
-    - [2.1.3. Extra Sub Space](#213-Extra-Sub-Space)
-  - [2.2. Concept of **source code document**](#22-Concept-of-source-code-document)
-  - [2.3. Concept of **module**](#23-Concept-of-module)
-  - [2.4. Concept of **target**](#24-Concept-of-target)
-  - [2.5. Concept of **package**](#25-Concept-of-package)
-  - [2.6. Structure of Space Engine](#26-Structure-of-Space-Engine)
+- [2. Chapter Two: Space and Space engine](#2-chapter-two-space-and-space-engine)
+  - [2.1. Concept of space](#21-concept-of-space)
+    - [2.1.1. Main Spaces](#211-main-spaces)
+    - [2.1.2. Sub Spaces](#212-sub-spaces)
+    - [2.1.3. Extra Sub Space](#213-extra-sub-space)
+  - [2.2. Concept of **source code document**](#22-concept-of-source-code-document)
+  - [2.3. Concept of **module**](#23-concept-of-module)
+  - [2.4. Concept of **target**](#24-concept-of-target)
+  - [2.5. Concept of **package**](#25-concept-of-package)
+  - [2.6. Structure of Space Engine](#26-structure-of-space-engine)
+  - [2.7. Functionality of Space Engine](#27-functionality-of-space-engine)
+    - [2.7.1. The interactive mode](#271-the-interactive-mode)
+    - [2.7.2. The common usage](#272-the-common-usage)
 
 ## 2.1. Concept of space
 
@@ -131,3 +134,27 @@ There are two kinds of abstract objects that space engine should provide to the 
   The Abstract File is used to represent an object which carries some attributes and is available for reading or writting.
 
   There should be available methods ready for call to manage Abstract Files. Such as creating, deleting, opening, closing or doing IO operation.
+
+## 2.7. Functionality of Space Engine
+
+### 2.7.1. The interactive mode
+
+Sometimes, compiler is started to complete a semantics diagnostic mission. This task is started by IDE automatically and documents edited have not been saved to disk. The compiler can give the right diagnostics informations only if compiler can read the lastest version of all documents.
+
+In this situation, compiler must assume there is a extra provider, who might hosts some of the documents. Compiler has to ask whether the extra provider has the lastest version each time the compiler refers to certain document.
+
+The extra provider has to be able to communicate with the compiler. Start the compiler in the `interactive` mode to let it know where to ask source code for.
+
+~~~bash
+#!/bin/bash
+
+alioth v: zxc -- 0/1
+~~~
+
+The command above starts the alioth compiler in the semantic validation mode and tells the compiler that there is an extra provider, access all resources in the interactive mode.
+
+### 2.7.2. The common usage
+
+In generic saying, the `SpaceEngine` is used to abstact data sources into streams readable or writeable. The concept `DataSource` refers to any abstract unit who can provide data input or data storage.
+
+It's complicated to consider to make the read or write stream thread-safe, because the abstract concept of stream is designed to be used by only one user.

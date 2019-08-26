@@ -77,7 +77,7 @@ Unlike the common compilers always process some source documents as input and ge
 
 Basically you can just execute command to run the compiler to generate some output file from source documents. Furthermore you can start the compiler to host a repository or to host a package.
 
-A **target** is an object which is the reason why you run the compiler. May be the output file in format of static link library or dynamic link library vs executable entity. May be the hosted repository or the hosted package.
+A **target** is an object which is the reason why you run the compiler. May be the output file in format of static link library or dynamic link library or executable entity. May be the hosted repository or the hosted package.
 
 ### 2.1.1. Auto
 
@@ -303,10 +303,15 @@ Compiler will try to validate semantics within the workspace, all diagnostics in
 ~~~bash
 #!/bin/bash
 
-alioth v: check
+alioth v: 1
 ~~~
 
-The target name is needed since the format is defined.
+The target name specifies where to display or storge the diagnostics informations.
+
+There're two kind of format available for this target name.
+
+- number : To specify an output stream file descriptor.
+- path/uri : To specify an document to storge the diagnostics informations.
 
 ### 3.5.1. Interactive mode
 
@@ -555,6 +560,9 @@ A directory named `Hello World` will be created, and config files such as `packa
 |`update:`|`update: <PACKAGE> [- <VERSION>]`|`update: stdlib - 3.7.^`|Package update target indicator|
 |`remove:`|`remove: <PACKAGE> [- <SECTION>]`|`remove: stdlib-linux-x86_64 - main dev doc`|Remove sections from packages installed|
 |`publish:`|`publish: <PACKAGE-NAME> <SECTIONS> - <REPOSITORY>`|`publish: stdlib-linux-x86_64 main alioth://localhost/Alioth`|Publish package to remote repository|
+|`--help`|`--help`|`--help`|Print the help page and exit|
+|`--version`|`--version`|`--version`|Print the version information and exit|
+|`--init`|`--init <PACKAGE>`|`--init HelloWorld`|Initialize a project structure for package `HelloWorld`|
 
 ## Options
 
@@ -563,9 +571,10 @@ A directory named `Hello World` will be created, and config files such as `packa
 |`--`|`-- <I/O>`|`-- 0/1`|Open the interactive mode, specify streams to do the I/O operation|
 |`--work`|`--work <PATH>`|`--work ./demo/`|Set the path of the workspace|
 |`--root`|`--root <PATH>`|`--root /usr/lib/alioth`|Set the path of the root space|
-|`--help`|`--help`|`--help`|Print the help page and exit|
-|`--version`|`--version`|`--version`|Print the version information and exit|
-|`--init`|`--init <PACKAGE>`|`--init HelloWorld`|Initialize a project structure for package `HelloWorld`|
+|`--diagnostics-format`|`--diagnostics-format <format>`|`--diagnostics-format %i`|Config the format of diagnostics informations|
+|`--diagnostics-lang`|`--diagnostics-lang <language>`|`--diagnostics-lang chinese`|Choose the language the diagnostics informations are written|
+|`--diagnostics-method`|`--diagnostics-method <method>`|`--diagnostics-method json`|Choose the method to display the diagnostics informations|
+|`--diagnostics-to`|`--diagnostics-to <destination>`|`--diagnostics-to 4`|Choose the destination where to print diagnostics informations to|
 
 # Appendix B: Configurations and config files
 
@@ -578,12 +587,19 @@ Diagnostics informations are given formatted, you may modify the config file `Di
   "format" : "%p:%l:%c:(%E) %i -- %s",
   "languages" : {
     "chinese" : {
-      "1" : {
-        "sev" : 1,
-        "beg" : "b0",
-        "end" : "e2",
-        "msg" : "方法'%R1'没有终结指令"
-      }
+      "templates" : {
+        "1" : {
+          "sev" : 1,
+          "beg" : "b0",
+          "end" : "e2",
+          "msg" : "方法'%R1'没有终结指令"
+        }
+      }, "severities" : [
+        "错误",
+        "警告",
+        "信息",
+        "提示"
+      ]
     }
   }
 }
@@ -604,13 +620,10 @@ Tokens starting with '%' are place-holders, stand for variables, here is a table
 |`%i`|diagnostics informaton|
 |`%l`|line number|
 |`%L`|line number at the end of the code involved|
-|`%p`|path to the document|
-|`%P`|path to the folder who contains the document|
-|`%u`|url to the document|
-|`%U`|uri to the document|
+|`%p`|prefix information, generally, it is a path.|
 |`%s`|severity in string|
 |`%S`|severity in number|
-|`%t`|time formated as `hh/mm/ss`|
+|`%t`|time formated as `hh:mm:ss`|
 |`%T`|timestamp in number|
 
 The second major section is the section named 'languages', which is a object, every key is a name of one language, and every corresponding object is a set of format descriptor, each of these descriptors describes format of a corresponding diagnostic information of certain error code.

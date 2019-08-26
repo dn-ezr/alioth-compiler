@@ -6,20 +6,20 @@ date: 2019/07/11
 
 # 1. Chapter One: Structure of Compiler
 
-- [1. Chapter One: Structure of Compiler](#1-Chapter-One-Structure-of-Compiler)
-  - [1.1. Core workflow](#11-Core-workflow)
-    - [1.1.1. Startup & initialize](#111-Startup--initialize)
-    - [1.1.2. Determine work boundary](#112-Determine-work-boundary)
-    - [1.1.3. Frontend work stream](#113-Frontend-work-stream)
-    - [1.1.4. Backend work stream](#114-Backend-work-stream)
-    - [1.1.5. Clean & exit](#115-Clean--exit)
-  - [1.2. Engines](#12-Engines)
-    - [1.2.1. SpaceEngine](#121-SpaceEngine)
-    - [1.2.2. Compiler](#122-Compiler)
-    - [1.2.3. DiagnosticEngine](#123-DiagnosticEngine)
-    - [1.2.4. LexicalEngine](#124-LexicalEngine)
-    - [1.2.5. SyntacticEngine](#125-SyntacticEngine)
-    - [1.2.6. SemanticEngine](#126-SemanticEngine)
+- [1. Chapter One: Structure of Compiler](#1-chapter-one-structure-of-compiler)
+  - [1.1. Core workflow](#11-core-workflow)
+    - [1.1.1. Startup & initialize](#111-startup--initialize)
+    - [1.1.2. Determine work boundary](#112-determine-work-boundary)
+    - [1.1.3. Frontend work stream](#113-frontend-work-stream)
+    - [1.1.4. Backend work stream](#114-backend-work-stream)
+    - [1.1.5. Clean & exit](#115-clean--exit)
+  - [1.2. Engines & Managers](#12-engines--managers)
+    - [1.2.1. SpaceEngine](#121-spaceengine)
+    - [1.2.2. AbstractCompiler](#122-abstractcompiler)
+    - [1.2.3. DiagnosticEngine](#123-diagnosticengine)
+    - [1.2.4. LexicalEngine](#124-lexicalengine)
+    - [1.2.5. SyntacticEngine](#125-syntacticengine)
+    - [1.2.6. SemanticEngine](#126-semanticengine)
 
 ## 1.1. Core workflow
 
@@ -99,9 +99,9 @@ Translate low level intermediate representations into target machine code, then 
 
 Clean environment and exit program.
 
-## 1.2. Engines
+## 1.2. Engines & Managers
 
-According workflow described above, the following engines are designed.
+According workflow described above, the following engines and managers are designed.
 
 ### 1.2.1. SpaceEngine
 
@@ -111,9 +111,9 @@ Provide accessing stream for any resource.
 
 Can be configured by **pre-arguments** and configuration files.
 
-### 1.2.2. Compiler
+### 1.2.2. AbstractCompiler
 
-The `Compiler` is an engine named `Compiler` who controls all rules managing resources.
+The main abstract structure of compiler is an engine named `Compiler` who controls all rules managing resources.
 
 `Compiler` knows what to do and how; `Compiler` manages the strategy accessing resources according configuration files and **post-arguments**.
 
