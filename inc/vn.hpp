@@ -10,6 +10,8 @@ namespace alioth {
  */
 namespace VN {
     const static int offset = VT::max + 1000;
+    DEFINE(min)
+
     DEFINE(ATTRIBUTE)
     DEFINE(BLOCK)
     DEFINE(BRANCH)
@@ -94,6 +96,9 @@ namespace VN {
     DEFINE(RAW)
     DEFINE(TERMINAL)
     DEFINE(TYPEUC)
+
+
+    DEFINE(max)
 };
 
 }

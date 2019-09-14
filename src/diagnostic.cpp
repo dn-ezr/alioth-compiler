@@ -116,13 +116,13 @@ bool DiagnosticEngine::configureLanguage( const string& language, const json& co
         conf.for_each([&]( const string& key, const json& value ) -> bool {
             auto& temp = templates[key];
             if( !value.is(json::object) ) {correct = false;return true;}
-            if( value.count("sev") == 0 or !value["sev"].is(json::number) ) {correct = false;return true;}
+            if( value.count("sev") == 0 or !value["sev"].is(json::integer) ) {correct = false;return true;}
             if( value.count("beg") == 0 or !value["beg"].is(json::string) and regex_match((string)value["beg"],rpos) ) {correct = false;return true;}
             if( value.count("end") == 0 or !value["end"].is(json::string) and regex_match((string)value["end"],rpos) ) {correct = false;return true;}
             if( value.count("msg") == 0 or !value["msg"].is(json::string) ) {correct = false;return true;}
 
             templates[key] = (DiagnosticTemplate){
-                severity: (int)(double)value["sev"],
+                severity: (int)(long)value["sev"],
                 beg: pos_detector(value["beg"]),
                 end: pos_detector(value["end"]),
                 msg: value["msg"]
@@ -243,26 +243,26 @@ json DiagnosticEngine::printToJson( const Diagnostic& d )const {
     if( !language->templates.count(d.code) ) throw runtime_error("DiagnosticEngine::printToString( const Diagnostic& d, const DiagnosticLanguage* lang )const: no corresponding diagnostic template found");
     auto tmpl = language->templates.at(d.code);
 
-    diagnostic["severity"] = (double)tmpl.severity;
+    diagnostic["severity"] = (long)tmpl.severity;
     diagnostic["prefix"] = d.prefix;
     diagnostic["error_code"] = d.code;
     diagnostic["message"] = organizeDiagnosticInformation(d, false);
 
-    if( auto [lo,nu] = tmpl.beg; lo == 0 ) diagnostic["begin_line"] = (double)0;
-    else if( lo > 0 ) diagnostic["begin_line"] = (double)d.args[nu].bl;
-    else diagnostic["begin_line"] = (double)d.args[nu].el;
+    if( auto [lo,nu] = tmpl.beg; lo == 0 ) diagnostic["begin_line"] = (long)0;
+    else if( lo > 0 ) diagnostic["begin_line"] = (long)d.args[nu].bl;
+    else diagnostic["begin_line"] = (long)d.args[nu].el;
 
-    if( auto [lo,nu] = tmpl.beg; lo == 0 ) diagnostic["begin_column"] = (double)0;
-    else if( lo > 0 ) diagnostic["begin_column"] = (double)d.args[nu].bc;
-    else diagnostic["begin_column"] = (double)d.args[nu].ec;
+    if( auto [lo,nu] = tmpl.beg; lo == 0 ) diagnostic["begin_column"] = (long)0;
+    else if( lo > 0 ) diagnostic["begin_column"] = (long)d.args[nu].bc;
+    else diagnostic["begin_column"] = (long)d.args[nu].ec;
 
-    if( auto [lo,nu] = tmpl.end; lo == 0 ) diagnostic["end_line"] = (double)0;
-    else if( lo > 0 ) diagnostic["end_line"] = (double)d.args[nu].bl;
-    else diagnostic["end_line"] = (double)d.args[nu].el;
+    if( auto [lo,nu] = tmpl.end; lo == 0 ) diagnostic["end_line"] = (long)0;
+    else if( lo > 0 ) diagnostic["end_line"] = (long)d.args[nu].bl;
+    else diagnostic["end_line"] = (long)d.args[nu].el;
 
-    if( auto [lo,nu] = tmpl.end; lo == 0 ) diagnostic["end_column"] = (double)0;
-    else if( lo > 0 ) diagnostic["end_column"] = (double)d.args[nu].bc;
-    else diagnostic["end_column"] = (double)d.args[nu].ec;
+    if( auto [lo,nu] = tmpl.end; lo == 0 ) diagnostic["end_column"] = (long)0;
+    else if( lo > 0 ) diagnostic["end_column"] = (long)d.args[nu].bc;
+    else diagnostic["end_column"] = (long)d.args[nu].ec;
 
     auto& informations = diagnostic["informations"];
     informations = json(json::array);

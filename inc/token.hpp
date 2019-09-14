@@ -8,6 +8,8 @@
 
 namespace alioth {
 
+class Diagnostics;
+
 /**
  * @enum-class CT : 符号分类
  * @desc :
@@ -156,6 +158,20 @@ class token {
         token& operator = ( const token& ) = default;
         token& operator = ( token&& ) = default;
 
+        /** 
+         * @operator == : 判断两个记号是否相等
+         * @desc :
+         *  相等的条件是
+         *      1： 确定书写格式的记号，只比对记号id
+         *      2:  非终结符只比对记号id
+         *      3:  不确定书写格式的记号，比对文本内容
+         *      4:  VT::R::ERR与任何记号都不等价，包括它自己
+         * @param another: 另一个词法符号
+         * @return bool : 两个记号是否等价
+         */
+        bool operator == ( const token& another ) const;
+        bool operator != ( const token& another ) const;
+
         /**
          * @destructor : 析构方法
          * @desc :
@@ -196,6 +212,21 @@ class token {
         bool is( int t )const;
         bool is( CT c )const;
         template<typename...Args>bool is(Args ...args)const{return (... or is(args));}
+
+        /**
+         * @method extractContent : 提取内容
+         * @desc :
+         *  用于对STRING和CHARACTER提取文本内容
+         *  此方法不提取层嵌语法结构
+         *  对于其他token,直接返回文本内容
+         * @return tuple<bool,string,Diagnostics> : 提取是否成功，提取内容，诊断信息
+         */
+        tuple<bool,string,Diagnostics> extractContent()const;
+
+    public:
+        static token line(int l) {token t;t.bl = l;t.bc = 0;return t;}
+        static bool isvn( int id ) { return id == VT::R::ERR or id == VT::R::END or id == VT::R::BEG or (id > VT::min and id < VT::max); }
+        static bool isvt( int id ) { return id > VN::min and id < VN::max; }
 };
 
 using tokens = chainz<token>;

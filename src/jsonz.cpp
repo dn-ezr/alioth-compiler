@@ -14,6 +14,7 @@ using objty = std::map<strty,json>;
 void json::clean() {
     switch( mtype ) {
         case boolean: delete (bool*)mdata;break;
+        case integer: delete (long*)mdata;break;
         case number: delete (double*)mdata;break;
         case string: delete (strty*)mdata;break;
         case object: delete (objty*)mdata;break;
@@ -27,6 +28,7 @@ void json::clean() {
 json::json( type t ):mtype(t) {
     switch( t ) {
         case boolean : mdata = new bool(false);break;
+        case integer : mdata = new long(0);break;
         case number : mdata = new double(0.0);break;
         case string : mdata = new strty();break;
         case object : mdata = new objty();break;
@@ -36,6 +38,7 @@ json::json( type t ):mtype(t) {
     }
 }
 
+json::json( long x ):mtype(integer),mdata(new long(x)){}
 json::json( double x ):mtype(number),mdata(new double(x)){}
 json::json( const strty& s ):mtype(string),mdata(new strty(s)){}
 json::json( strty&& s ):mtype(string),mdata(new strty(std::move(s))){}
@@ -44,6 +47,7 @@ json::json( json&& j ):mtype(j.mtype),mdata(j.mdata){j.mdata = nullptr;j.mtype =
 json::json( const json& j ):mtype(j.mtype) {
     switch( mtype ) {
         case boolean: mdata = new bool(*(bool*)j.mdata);break;
+        case integer: mdata = new long(*(long*)j.mdata);break;
         case number: mdata = new double(*(double*)j.mdata);break;
         case string: mdata = new strty(*(strty*)j.mdata);break;
         case object: mdata = new objty(*(objty*)j.mdata);break;
@@ -66,6 +70,15 @@ json::operator bool &() {
 json::operator const bool &()const {
     if( mtype != boolean ) throw std::runtime_error("cannot convert json to boolean");
     return *(const bool*)mdata;
+}
+
+json::operator long&() {
+    if( mtype != integer ) throw std::runtime_error("cannot convert json to integer");
+    return *(long*)mdata;
+}
+json::operator const long&()const {
+    if( mtype != integer ) throw std::runtime_error("cannot convert json to integer");
+    return *(const long*)mdata;
 }
 
 json::operator double&() {
@@ -135,6 +148,11 @@ void json::erase( int idx ) {
 json& json::operator = ( bool b ) {
     if( mtype != boolean ) {clean();operator=(json(b));}
     else *(bool*)mdata = b;
+    return *this;
+}
+json& json::operator = ( long x ) {
+    if( mtype != integer ) {clean();operator=(json(x));}
+    else *(long*)mdata = x;
     return *this;
 }
 json& json::operator = ( double x ) {
@@ -222,7 +240,9 @@ json json::FromJsonStream( std::istream& is ) {
                     if( is.good() ) {
                         stay = true;
                         state = 0;
-                        data = r;
+                        long x = r;
+                        if( (r - x) == 0 ) data = x;
+                        else data = r;
                     } else {
                         state == -3;
                     }
@@ -409,6 +429,7 @@ strty json::toJsonString() const {
     switch ( mtype ) {
         case null: return "null";
         case boolean: return *(bool*)mdata?"true":"false";
+        case integer: return std::to_string(*(long*)mdata);
         case number: return std::to_string(*(double*)mdata);
         case object: {
             const auto& map = *(objty*)mdata;

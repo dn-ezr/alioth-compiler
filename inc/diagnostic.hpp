@@ -18,31 +18,37 @@ struct Diagnostic;
  * @desc :
  *  诊断信息组用于成组管理诊断信息，同时它也是一个诊断信息生成器
  */
-struct Diagnostics : chainz<Diagnostic> {
+class Diagnostics : public chainz<Diagnostic> {
 
-    /**
-     * @member prefix : 前缀信息
-     * @desc : 在生成诊断信息时，用于填写前缀字段的预制信息 */
-    string prefix;
+    private:
+        /**
+         * @member prefix : 前缀信息
+         * @desc : 在生成诊断信息时，用于填写前缀字段的预制信息 */
+        string prefix;
 
-    /**
-     * @operator () : 生成诊断信息
-     * @desc : 
-     *  生成一条诊断信息存于容器
-     * @param code : 错误码
-     * @param args : 诊断参数
-     * @return Diagnostics& : 返回自身引用
-     */
-    template<typename ...Args>
-    Diagnostics& operator () ( string code, Args&&... args ) {
-        construct(-1, prefix, code, std::forward<Args>(args)...);
-        return *this;
-    }
+    public:
+        /**
+         * @operator () : 生成诊断信息
+         * @desc : 
+         *  生成一条诊断信息存于容器
+         * @param code : 错误码
+         * @param args : 诊断参数
+         * @return Diagnostics& : 返回自身引用
+         */
+        template<typename ...Args>
+        Diagnostics& operator () ( string code, Args&&... args ) {
+            construct(-1, prefix, code, std::forward<Args>(args)...);
+            return *this;
+        }
 
-    Diagnostics& operator [] ( const string& prefix ) {
-        this->prefix = prefix;
-        return *this;
-    }
+        Diagnostics& operator [] ( const string& prefix ) {
+            this->prefix = prefix;
+            return *this;
+        }
+
+        Diagnostic& operator [] ( int index ) {
+            return (*(chainz*)this)[index];
+        }
 };
 
 /**

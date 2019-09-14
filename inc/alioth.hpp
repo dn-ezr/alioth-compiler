@@ -21,6 +21,11 @@ namespace alioth {
 #define __compiler_ver__ std::tuple<int,int,int>(0,2,0)
 #define __compiler_ver_str__ string("0.3.0")
 
+#ifdef __ALIOTH_DEBUG__
+#define internal_error diagnostics[__FILE__]("internal",token::line(__LINE__))
+#else
+#define internal_error
+#endif
 }
 
 #endif

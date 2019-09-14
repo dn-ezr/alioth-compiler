@@ -27,6 +27,9 @@ const string SpaceEngine::default_work_path = "./";
 const string SpaceEngine::default_root_path = "/usr/lib/alioth/";
 #endif
 
+const SpaceEngine::Desc SpaceEngine::Desc::Error = {flags:0};
+const Uri Uri::Bad = {port:-1};
+
 Uri Uri::FromString( const string& str ) {
 
     if( IsPath(str) ) return FromPath(str);
@@ -159,7 +162,7 @@ bool SpaceEngine::Desc::isSubSpace() const {
 
 json SpaceEngine::Desc::toJson() const {
     json ret = json::object;
-    ret["flags"] = (double)flags;
+    ret["flags"] = (long)flags;
     ret["name"] = name;
     ret["package"] = package;
     return ret;
@@ -167,9 +170,13 @@ json SpaceEngine::Desc::toJson() const {
 
 json SpaceEngine::FullDesc::toJson() const {
     auto ret = Desc::toJson();
-    ret["mtime"] = (double)mtime;
-    ret["size"] = (double)size;
+    ret["mtime"] = (long)mtime;
+    ret["size"] = (long)size;
     return ret;
+}
+
+SpaceEngine::Desc::operator bool()const {
+    return flags != 0;
 }
 
 SpaceEngine::SpaceEngine() {
@@ -205,8 +212,8 @@ bool SpaceEngine::setMainSpaceMapping( int space, const string& mapping, const s
 chainz<SpaceEngine::FullDesc> SpaceEngine::enumerateContents( const SpaceEngine::Desc& desc ) {
     if( !desc.isSpace() ) 
         throw runtime_error("SpaceEngine::enumerateContents( const Desc& desc): descriptor doesn't describe a space.");
-    auto uri = getUri(desc);
-    DIR* dir = opendir(uri.path.data());
+    auto path = getPath(desc);
+    DIR* dir = opendir(path.data());
     if( !dir )
         throw runtime_error("SpaceEngine::enumerateContents( const Desc& desc ): bad mapping for space, cannot open it.");
     chainz<SpaceEngine::FullDesc> descs;
@@ -216,13 +223,13 @@ chainz<SpaceEngine::FullDesc> SpaceEngine::enumerateContents( const SpaceEngine:
         string name(p->d_name);
         if( name == "." or name == ".." ) continue;
         
-        name = uri.path + name;
+        name = path + name;
         struct stat stat;
         if( ::stat(name.data(), &stat ) ) continue;
         
         FullDesc& ret = descs.construct(-1);
         ret.mtime = stat.st_mtime;
-        ret.mtime = stat.st_size;
+        ret.size = stat.st_size;
         ret.flags = desc.flags;
         ret.package = desc.package;
         ret.name = p->d_name;
@@ -290,6 +297,10 @@ uistream SpaceEngine::openDocumentForRead( const SpaceEngine::Desc& desc ) {
 
 uostream SpaceEngine::openDocumentForWrite( const SpaceEngine::Desc& desc ) {
     return OpenStreamForWrite(getUri(desc));
+}
+
+bool SpaceEngine::reachDataSource( const SpaceEngine::Desc& desc ) {
+    return ReachDataSource( getUri(desc) );
 }
 
 string SpaceEngine::getPath( const SpaceEngine::Desc& desc ) {
@@ -377,12 +388,22 @@ uostream SpaceEngine::OpenStreamForWrite( Uri uri ) {
     return os;
 }
 
+bool SpaceEngine::ReachDataSource( Uri uri ) {
+    if( uri.scheme != "file" ) {
+        throw runtime_error("SpaceEngine::ReachDataSource( Uri uri ): resource is not located on filesystem.");
+    }
+    string path = dirdvs + uri.path;
+    struct stat stat;
+    if( ::stat( path.data(), &stat) ) return false;
+    return true;
+}
+
 bool SpaceEngine::IsSpace( int flags ) {
     return flags != 0 and (flags & DOCUMENT) == 0;
 }
 
 bool SpaceEngine::IsDocument(int flags ) {
-    return flags & DOCUMENT != 0;
+    return (flags & DOCUMENT) != 0;
 }
 
 bool SpaceEngine::IsMainSpace( int flags ) {
@@ -391,6 +412,12 @@ bool SpaceEngine::IsMainSpace( int flags ) {
 
 bool SpaceEngine::IsSubSpace( int flags ) {
     return (flags & DOCUMENT) == 0 and (flags & 0x00ff) != 0;
+}
+int SpaceEngine::PeekMain( int flags ) {
+    return flags & 0x0f00;
+}
+int SpaceEngine::PeekSub( int flags ) {
+    return flags & 0x00ff;
 }
 
 fdistream::fdistream( int fd ):

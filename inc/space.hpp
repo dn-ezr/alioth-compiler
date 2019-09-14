@@ -39,6 +39,9 @@ struct Uri {
     static bool IsRelativePath( const string& str );
     static bool IsAbsolutePath( const string& str );
     operator string() const;
+    explicit operator bool()const;
+
+    static const Uri Bad;
 };
 
 class SpaceEngine {
@@ -105,6 +108,10 @@ class SpaceEngine {
                     if( package != desc.package ) return false;
                 return true;
             }
+
+            explicit operator bool()const;
+
+            const static Desc Error;
         };
 
         /**
@@ -262,6 +269,15 @@ class SpaceEngine {
         uostream openDocumentForWrite( const SpaceEngine::Desc& desc );
 
         /**
+         * @method reachDataSource : 检查数据源可达性
+         * @desc :
+         *  检查数据源是否可达
+         * @param desc : 数据源描述符
+         * @return bool : 数据源是否可达
+         */
+        bool reachDataSource( const SpaceEngine::Desc& desc );
+
+        /**
          * @method getPath : 获取文件路径
          * @desc :
          *  此方法用于获取一个描述符所描述的资源的文件路径。
@@ -325,10 +341,21 @@ class SpaceEngine {
          */
         static uostream OpenStreamForWrite( Uri uri );
 
-        static bool inline IsSpace( int );
-        static bool inline IsDocument( int );
-        static bool inline IsMainSpace( int );
-        static bool inline IsSubSpace( int );
+        /**
+         * @method ReachDataSource : 检查数据源是否可达
+         * @desc :
+         *  检查数据源是否可达
+         * @param uri : 数据源的统一资源标识符
+         * @return bool : 数据源是否可达
+         */
+        static bool ReachDataSource( Uri uri );
+
+        static bool IsSpace( int );
+        static bool IsDocument( int );
+        static bool IsMainSpace( int );
+        static bool IsSubSpace( int );
+        static int PeekMain( int );
+        static int PeekSub( int );
 };
 
 /**

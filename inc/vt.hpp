@@ -1,7 +1,11 @@
 #ifndef __vt__
 #define __vt__
+
+#include <map>
+
 #undef NULL
 namespace alioth {
+using namespace std;
 /**
  * @namespace VT: 终结符词汇表
  * @desc :
@@ -9,17 +13,18 @@ namespace alioth {
  *  利用行号区别各个值
  */
 #define DEFINE(x) const static int x = __LINE__ + offset;
-namespace VT {
+namespace VT { // vocabulary-terminal
     const static int offset = 100;
     
-    namespace R {
+    DEFINE(min)
+    namespace R { // reserved token
         const static int ERR = 0;
         const static int BEG = 1;
         const static int END = -1;
     }
-    namespace O {
-        namespace ASS {
-            DEFINE($)
+    namespace O { // operator
+        DEFINE(ASSIGN)
+        namespace ASS { // assign operator
             DEFINE(DIV)
             DEFINE(MINUS)
             DEFINE(MOL)
@@ -27,25 +32,25 @@ namespace VT {
             DEFINE(PLUS)
             DEFINE(SHL)
             DEFINE(SHR)
-            namespace B {
+            namespace B { // binary assign operator
                 DEFINE(AND)
                 DEFINE(OR)
                 DEFINE(XOR)
             }
         }
-        namespace B {
+        namespace B { // binary operator
             DEFINE(AND)
             DEFINE(OR)
             DEFINE(REV)
             DEFINE(XOR)
         }
-        namespace SC {
-            namespace C {
+        namespace SC { // scoping operator
+            namespace C { // closing scope
                 DEFINE(A)
                 DEFINE(L)
                 DEFINE(S)
             }
-            namespace O {
+            namespace O { // opening scope
                 DEFINE(A)
                 DEFINE(L)
                 DEFINE(S)
@@ -68,6 +73,7 @@ namespace VT {
         DEFINE(INCRESS)
         DEFINE(LE)
         DEFINE(LT)
+        DEFINE(MEMBER)
         DEFINE(MINUS)
         DEFINE(MOL)
         DEFINE(MUL)
@@ -82,16 +88,16 @@ namespace VT {
     }
     namespace U {
         DEFINE(SPACE)
+        namespace C { // comment
+            DEFINE(LINE)
+            DEFINE(BLOCK)
+        }
     }
-    namespace COMMENT {
-        DEFINE(LINE)
-        DEFINE(BLOCK)
-    }
-    namespace L {
+    namespace L { // literal
         DEFINE(CHAR)
         DEFINE(FALSE)
         DEFINE(FLOAT)
-        namespace I {
+        namespace I { // literal integer
             DEFINE(B)
             DEFINE(H)
             DEFINE(N)
@@ -127,7 +133,6 @@ namespace VT {
     DEFINE(INT64)
     DEFINE(INT8)
     DEFINE(LOOP)
-    DEFINE(MEMBER)
     DEFINE(META)
     DEFINE(METHOD)
     DEFINE(MODULE)
@@ -151,6 +156,9 @@ namespace VT {
 
     /** @max : 用于方便随时确定终结符的最大边界 */
     DEFINE(max)
+
+    /** @written_table : 终结词汇书写表 */
+    extern const map<int,string> written_table;
 }
 
 }

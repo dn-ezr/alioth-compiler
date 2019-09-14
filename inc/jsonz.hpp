@@ -9,7 +9,7 @@
 
 class json {
     public:
-        enum type { boolean, number, string, object, array, null };
+        enum type { boolean, integer, number, string, object, array, null };
 
     private:
         type mtype;
@@ -25,12 +25,14 @@ class json {
          * @desc :
          *  接受初始值构造json
          * @param type : 对于不同Json类型，初始化数据指针
+         * @param long : 初始化整数类型
          * @param double : 初始化number类型
          * @param const std::string&, std::string&& : 初始化string类型
          * @param bool : 初始化boolean类型
          * @param const josn&, json&& : 拷贝和移动构造函数
          */
         json( type = null );
+        json( long );
         json( double );
         json( const std::string& );
         json( std::string&& );
@@ -62,6 +64,9 @@ class json {
          */
         explicit operator bool&();
         explicit operator const bool&()const;
+
+        explicit operator long&();
+        explicit operator const long&()const;
 
         explicit operator double&();
         explicit operator const double&()const;
@@ -115,6 +120,7 @@ class json {
          *  若类型一致,不释放原数据指针
          */
         json& operator = ( bool );
+        json& operator = ( long );
         json& operator = ( double );
         json& operator = ( const std::string& );
         json& operator = ( std::string&& );

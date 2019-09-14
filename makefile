@@ -7,7 +7,7 @@ OBJ = $(SRC:src/%.cpp=obj/%.o)
 CC = g++-8
 LLVMOOPT = $(shell llvm-config --cxxflags)
 LLVMLOPT = $(shell llvm-config --ldflags --system-libs --link-static --libs x86codegen)
-OOPT = $(LLVMOOPT) -Iinc -std=gnu++17 -g -c
+OOPT = $(LLVMOOPT) -Iinc -std=gnu++17 -g -c -D__ALIOTH_DEBUG__
 LOPT = $(LLVMLOPT)
 TARGET = bin/alioth
 
