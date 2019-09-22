@@ -100,6 +100,7 @@ struct node : public thing {
          * @method setScope : 设置作用域
          * @desc :
          *  此方法用于给语法树节点设置作用域，只有当语法树节点为null时才会成功
+         *  另一种特殊情况是当sc为空时，允许使用此方法清空作用域
          * @param sc : 作用域
          * @return bool : 执行是否成功
          */
@@ -142,6 +143,7 @@ struct node : public thing {
  * @struct signature : 模块签名
  * @desc :
  *  每个片段必备的结构，用于在片段和模块，模块和模块建立联系
+ *  此结构应当被CompilerContext管理
  */
 struct signature : public node {
     
@@ -162,19 +164,46 @@ struct signature : public node {
 
         /**
          * @member docs : 文档集
-         * @desc : 此容器用于方便编译器类记录模块的源码来源不被语法分析器负责 */
-        chainz<SpaceEngine::FullDesc> docs;
+         * @desc : 此容器用于方便编译器类记录模块的源码来源不被语法分析器负责 
+         *  此容器中键和值都很重要，键用作编译器上下文管理文档的唯一句柄，值作为上下文管理片段的唯一句柄 */
+        map<fulldesc,$fragment> docs;
 
         /**
          * @member space : 空间
          * @desc : 描述模块所在的空间，此值由编译器类负责填写，用于在补全依赖关系时提取信息 */
-        SpaceEngine::Desc space;
+        srcdesc space;
 
     public:
 
         virtual ~signature() = default;
         bool is( type )const override;
         bool isscope()const override;
+
+        /**
+         * @method toJson : 转化为json
+         * @desc :
+         *  将模块签名转化为json格式保存起来
+         *  此过程或剥除文档的主空间信息
+         *  此过程不保存space信息
+         * @return json: json格式的模块签名
+         */
+        json toJson() const;
+        /**
+         * @method fromJson : 从json恢复模块签名
+         * @desc :
+         *  此方法用于从json恢复模块签名
+         * @param object : json数据对象
+         * @param space : 用于补全文档空间信息的space,也将被存储于签名中
+         * @return $signature : 若恢复成功，则返回签名代理
+         */
+        static $signature fromJson( const json& object, srcdesc space );
+
+        /**
+         * @method combine : 合并签名
+         * @desc :
+         *  此方法用于将模块签名中的文档，依赖信息合并到当前签名中
+         */
+        bool combine( $signature );
 };
 
 /**
@@ -209,6 +238,7 @@ struct depdesc : public node {
         bool is( type )const override;
         bool isscope()const override;
         json toJson()const;
+        static $depdesc fromJson( const json& object );
 };
 
 /**
@@ -221,9 +251,9 @@ struct fragment : public node {
     public:
 
         /**
-         * @member source : 源码文档
-         * @desc : 此值应当由编译器类负责填写 */
-        SpaceEngine::Desc source;
+         * @member doc : 源码文档
+         * @desc : 此值应当由编译器类负责填写,条件允许时必须填写，此值是从fragment搜索对应signature的依据 */
+        srcdesc doc;
 
         /**
          * @member defs : 定义

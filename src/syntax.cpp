@@ -10,7 +10,7 @@ node::node( $scope sc ):mscope(sc) {
 }
 
 bool node::setScope( $scope sc ) {
-    if( mscope ) return false;
+    if( mscope and sc ) return false;
     mscope = sc;
     return true;
 }
@@ -38,6 +38,63 @@ bool signature::isscope()const {
     return true;
 }
 
+json signature::toJson() const {
+    json obj = json::object;
+    obj["name"] = name;
+    if( entry ) obj["entry"] = entry;
+    auto& jdeps = obj["deps"] = json(json::array);
+    auto& jcode = obj["code"] = json(json::array);
+    for( auto dep : deps ) jdeps[jdeps.count()] = dep->toJson();
+    for( auto& [code,_] : docs ) {
+        auto c = code;
+        c.flags = SpaceEngine::HideMain(c.flags);
+        c.package.clear();
+        jcode[jcode.count()] = c.toJson();
+    }
+    return obj;
+}
+
+$signature signature::fromJson( const json& object, srcdesc space ) {
+    if( !object.is(json::object) ) return nullptr;
+    $signature sig = new signature;
+    sig->space = space;
+    if( !object.count("name",json::string) ) return nullptr;
+    sig->name = (string)object["name"];
+    if( !sig->name.islabel() ) return nullptr;
+
+    if( object.count("entry",json::string) ) {
+        sig->entry = (string)object["entry"];
+        if( !sig->entry.islabel() ) return nullptr;
+    }
+    if( object.count("deps",json::array) ) 
+        for( auto& dep : object["deps"] ) {
+            auto desc = depdesc::fromJson(dep);
+            if( !desc ) continue;
+            desc->setScope(sig);
+            sig->deps << desc;
+        }
+    if( object.count("code",json::array) ) 
+        for( auto& desc : object["code"] ) {
+            auto d = fulldesc::fromJson(desc);
+            if( !d ) continue;
+            d.flags |= space.flags;
+            d.package = space.package;
+            sig->docs[d] = nullptr;
+        }
+    return sig;
+}
+
+bool signature::combine( $signature an ) {
+    if( !an or an->name != name or an->space != space ) return false;
+    for( auto[k,v] : an->docs ) docs[k] = v;
+    for( auto dep : an->deps ) {
+        dep->setScope(nullptr);
+        dep->setScope(this);
+    }
+    deps += an->deps;
+    return true;
+}
+
 bool depdesc::is( type t )const {
     return t == DEPDESC;
 }
@@ -48,9 +105,30 @@ bool depdesc::isscope()const {
 json depdesc::toJson()const {
     json dep = json::object;
     dep["name"] = name.tx;
-    dep["from"] = from.tx;
+    dep["from"] = get<1>(from.extractContent());
     dep["alias"] = alias.tx;
     return dep;
+}
+
+$depdesc depdesc::fromJson( const json& object ) {
+    $depdesc desc = new depdesc;
+    if( !object.is(json::object) ) return nullptr;
+    
+    if( object.count("name",json::string) )
+        desc->name = (string)object["name"];
+    else
+        return nullptr;
+    if( object.count("alias",json::string) ) {
+        desc->alias = (string)object["alias"];
+        if(desc->alias.tx == "this") 
+            desc->alias.id = VT::L::THIS; }
+    
+    if( object.count("from",json::string) ) {
+        desc->from = (string)object["from"];
+        if(desc->from.tx == ".") 
+            desc->alias.id = VT::O::MEMBER; }
+
+    return desc;
 }
 
 bool fragment::is( type t )const {

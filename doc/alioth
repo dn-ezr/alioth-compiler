@@ -1,0 +1,17 @@
+# bash completion for the alioth compiler
+# corresponding compiler version 0.3
+# author GodGnidoc
+
+_alioth() {
+    local cur prev words cword
+    _init_completion || return
+
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $( compgen -W "-- --root --work --version --init --help --diagnostic-format --diagnostic-method --diagnostic-to" -- ${cur}) )
+        return 0
+    else
+        _filedir
+    fi
+}
+
+complete -F _alioth alioth

@@ -212,6 +212,7 @@ class token {
         bool is( int t )const;
         bool is( CT c )const;
         template<typename...Args>bool is(Args ...args)const{return (... or is(args));}
+        bool islabel()const;
 
         /**
          * @method extractContent : 提取内容
@@ -227,6 +228,7 @@ class token {
         static token line(int l) {token t;t.bl = l;t.bc = 0;return t;}
         static bool isvn( int id ) { return id == VT::R::ERR or id == VT::R::END or id == VT::R::BEG or (id > VT::min and id < VT::max); }
         static bool isvt( int id ) { return id > VN::min and id < VN::max; }
+        static bool islabel( const string& str );
 };
 
 using tokens = chainz<token>;

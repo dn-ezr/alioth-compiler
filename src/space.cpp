@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include "ptree.hpp"
 
 namespace alioth {
 using namespace std;
@@ -27,7 +28,7 @@ const string SpaceEngine::default_work_path = "./";
 const string SpaceEngine::default_root_path = "/usr/lib/alioth/";
 #endif
 
-const SpaceEngine::Desc SpaceEngine::Desc::Error = {flags:0};
+const srcdesc srcdesc::error = {flags:0};
 const Uri Uri::Bad = {port:-1};
 
 Uri Uri::FromString( const string& str ) {
@@ -144,23 +145,27 @@ Uri::operator string() const {
     (fragment.size()?"#":"") + fragment;
 }
 
-bool SpaceEngine::Desc::isSpace() const {
+Uri::operator bool()const {
+    return port >= 0;
+}
+
+bool srcdesc::isSpace() const {
     return SpaceEngine::IsSpace(flags);
 }
 
-bool SpaceEngine::Desc::isDocument() const {
+bool srcdesc::isDocument() const {
     return SpaceEngine::IsDocument(flags);
 }
 
-bool SpaceEngine::Desc::isMainSpace() const {
+bool srcdesc::isMainSpace() const {
     return SpaceEngine::IsMainSpace(flags);
 }
 
-bool SpaceEngine::Desc::isSubSpace() const {
+bool srcdesc::isSubSpace() const {
     return SpaceEngine::IsSubSpace(flags);
 }
 
-json SpaceEngine::Desc::toJson() const {
+json srcdesc::toJson() const {
     json ret = json::object;
     ret["flags"] = (long)flags;
     ret["name"] = name;
@@ -168,14 +173,44 @@ json SpaceEngine::Desc::toJson() const {
     return ret;
 }
 
-json SpaceEngine::FullDesc::toJson() const {
-    auto ret = Desc::toJson();
+srcdesc srcdesc::fromJson( const json& object ) {
+    srcdesc d;
+    if( !object.is(json::object) ) return error;
+    if( !object.count("flags") or !object["flags"].is(json::integer) ) return error;
+    d.flags = (long)object["flags"];
+    
+    if( object.count("name") and object["name"].is(json::string) )
+        d.name = object["name"];
+    if( object.count("package") and object["package"].is(json::string) ) 
+        d.package = object["package"];
+    return d;
+}
+
+json fulldesc::toJson() const {
+    auto ret = srcdesc::toJson();
     ret["mtime"] = (long)mtime;
     ret["size"] = (long)size;
     return ret;
 }
 
-SpaceEngine::Desc::operator bool()const {
+fulldesc fulldesc::fromJson( const json& object ) {
+    fulldesc d;
+    if( !object.is(json::object) ) return error;
+    if( !object.count("flags") or !object["flags"].is(json::integer) ) return error;
+    d.flags = (long)object["flags"];
+
+    if( object.count("name") and object["name"].is(json::string) )
+        d.name = object["name"];
+    if( object.count("package") and object["package"].is(json::string) ) 
+        d.package = object["package"];
+    if( object.count("mtime") and object["mtime"].is(json::integer) )
+        d.mtime = (time_t)(long)object["mtime"];
+    if( object.count("size") and object["size"].is(json::integer) )
+        d.size = (size_t)(long)object["size"];
+    return d;
+}
+
+srcdesc::operator bool()const {
     return flags != 0;
 }
 
@@ -198,7 +233,7 @@ bool SpaceEngine::setMainSpaceMapping( int space, const string& mapping, const s
             if( package.empty() )
                 throw invalid_argument("SpaceEngine::setMainSpaceMapping( int space, const string& mapping, const string& package ): argument 'package' used, but empty.");
             mapkg[package].mapping = uri;
-            mapkg[package].desc = (Desc){
+            mapkg[package].desc = (srcdesc){
                 flags: APKG,
                 package:package
             };
@@ -209,14 +244,14 @@ bool SpaceEngine::setMainSpaceMapping( int space, const string& mapping, const s
     return true;
 }
 
-chainz<SpaceEngine::FullDesc> SpaceEngine::enumerateContents( const SpaceEngine::Desc& desc ) {
+chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {
     if( !desc.isSpace() ) 
-        throw runtime_error("SpaceEngine::enumerateContents( const Desc& desc): descriptor doesn't describe a space.");
+        throw runtime_error("SpaceEngine::enumerateContents( const srcdesc& desc): descriptor doesn't describe a space.");
     auto path = getPath(desc);
     DIR* dir = opendir(path.data());
     if( !dir )
-        throw runtime_error("SpaceEngine::enumerateContents( const Desc& desc ): bad mapping for space, cannot open it.");
-    chainz<SpaceEngine::FullDesc> descs;
+        throw runtime_error("SpaceEngine::enumerateContents( const srcdesc& desc ): bad mapping for space, cannot open it.");
+    chainz<fulldesc> descs;
     
     dirent* p = nullptr;
     while( (p = readdir(dir)) != nullptr ) {
@@ -227,7 +262,7 @@ chainz<SpaceEngine::FullDesc> SpaceEngine::enumerateContents( const SpaceEngine:
         struct stat stat;
         if( ::stat(name.data(), &stat ) ) continue;
         
-        FullDesc& ret = descs.construct(-1);
+        fulldesc& ret = descs.construct(-1);
         ret.mtime = stat.st_mtime;
         ret.size = stat.st_size;
         ret.flags = desc.flags;
@@ -255,9 +290,16 @@ chainz<SpaceEngine::FullDesc> SpaceEngine::enumerateContents( const SpaceEngine:
     return descs;
 }
 
-bool SpaceEngine::createDocument( const SpaceEngine::Desc& desc, int mod ) {
+chainz<string> SpaceEngine::enumeratePackages() {
+    chainz<string> res;
+    for( auto& desc : enumerateContents({flags:ROOT,name:"pkg"}) )
+        if( !desc.isDocument() ) res << desc.name;
+    return res;
+}
+
+bool SpaceEngine::createDocument( const srcdesc& desc, int mod ) {
     if( !desc.isDocument() )
-        throw runtime_error("SpaceEngine::createDocument( const SpaceEngine::Desc& desc ): descriptor doesn't describe a document.");
+        throw runtime_error("SpaceEngine::createDocument( const srcdesc& desc ): descriptor doesn't describe a document.");
     createSubSpace({flags:desc.flags&~DOCUMENT,name:desc.name,package:desc.package});
     if( auto fd = open(getPath(desc).data(),O_CREAT|O_RDONLY, mod ); fd < 0 ) {
         return false;
@@ -267,16 +309,16 @@ bool SpaceEngine::createDocument( const SpaceEngine::Desc& desc, int mod ) {
     return true;
 }
 
-bool SpaceEngine::createSubSpace( const SpaceEngine::Desc& desc ) {
+bool SpaceEngine::createSubSpace( const srcdesc& desc ) {
     if( !desc.isSubSpace() )
-        throw runtime_error("SpaceEngine::createSubSpace( const SpaceEngine::Desc& desc )： descriptor doesn't describe a sub space.");
+        throw runtime_error("SpaceEngine::createSubSpace( const srcdesc& desc )： descriptor doesn't describe a sub space.");
     auto path = getPath(desc);
     return mkdir(path.data(), 0755 ) == 0;
 }
 
-uistream SpaceEngine::openDocumentForRead( const SpaceEngine::Desc& desc ) {
+uistream SpaceEngine::openDocumentForRead( const srcdesc& desc ) {
     if( !desc.isDocument() )
-        throw runtime_error("SpaceEngine::openDocumentForRead( const SpaceEngine::Desc& desc ): descriptor doesn't describe a document.");
+        throw runtime_error("SpaceEngine::openDocumentForRead( const srcdesc& desc ): descriptor doesn't describe a document.");
     auto uri = getUri(desc);
     if( interactive ) {
         auto os = OpenStreamForWrite(interactive_o);
@@ -295,25 +337,75 @@ uistream SpaceEngine::openDocumentForRead( const SpaceEngine::Desc& desc ) {
     return OpenStreamForRead( uri );
 }
 
-uostream SpaceEngine::openDocumentForWrite( const SpaceEngine::Desc& desc ) {
+uostream SpaceEngine::openDocumentForWrite( const srcdesc& desc ) {
     return OpenStreamForWrite(getUri(desc));
 }
 
-bool SpaceEngine::reachDataSource( const SpaceEngine::Desc& desc ) {
+bool SpaceEngine::reachDataSource( const srcdesc& desc ) {
     return ReachDataSource( getUri(desc) );
 }
 
-string SpaceEngine::getPath( const SpaceEngine::Desc& desc ) {
+fulldesc SpaceEngine::statDataSource( const srcdesc& desc ) {
+    if( !desc ) return srcdesc::error;
+    auto uri = getUri(desc);
+    if( uri.scheme != "file" )
+        throw runtime_error("SpaceEngine::statDataSource( const srcdesc& desc ): data source doesn't located in filesystem.");
+    auto path = getPath(desc);
+    struct stat stat;
+    if( ::stat(path.data(), &stat) ) return srcdesc::error;
+    auto res = fulldesc(desc);
+    res.size = stat.st_size;
+    res.mtime = stat.st_mtime;
+    return res;
+}
+
+fulldesc SpaceEngine::statDataSource( Uri uri ) {
+    if( !uri ) return srcdesc::error;
+    if( uri.scheme != "file" )
+        throw runtime_error("SpaceEngine::statDataSource( Uri uri ): uri doesn't point to filesystem.");
+    auto is = (string)uri;
+    fulldesc desc;
+    
+    /** 准备主空间前缀树 */
+    ptree<srcdesc> tree;
+    tree[((string)getUri({flags:WORK})).data()].store({flags:WORK});
+    tree[((string)getUri({flags:ROOT})).data()].store({flags:ROOT});
+    for( auto& pkg : enumeratePackages() ) 
+        tree[pkg.data()].store({flags:APKG,package:pkg});
+
+    /** 检测主空间 */
+    if( auto main = tree.far(is.data()); !main or !main->getp() ) {
+        return srcdesc::error;
+    } else {
+        /** 准备子空间前缀树 */
+        for( const auto& sub : enumerateContents(main->get()) )
+            (*main)[((string)getUri(sub)).data()].store(sub);
+        /** 检测子空间 */
+        if( auto sub = tree.far(is.data()); !sub or !sub->getp() ) {
+            return srcdesc::error;
+        } else {
+            auto& d = sub->get();
+            auto ds = (string)getUri(d);
+            return statDataSource({
+                flags: d.flags,
+                name: string(is.begin()+ds.size(),is.end()),
+                package: d.package
+            });
+        }
+    }
+}
+
+string SpaceEngine::getPath( const srcdesc& desc ) {
     auto uri = getUri( desc );
 
     if( uri.scheme == "file" ) {
         return dirdvs + uri.path;
     } else {
-        throw runtime_error("SpaceEngine::getPath( const SpaceEngine::Desc& desc ): resource is not located on filesystem.");
+        throw runtime_error("SpaceEngine::getPath( const srcdesc& desc ): resource is not located on filesystem.");
     }
 }
 
-Uri SpaceEngine::getUri( const SpaceEngine::Desc& desc ) {
+Uri SpaceEngine::getUri( const srcdesc& desc ) {
     auto main = desc.flags&0x0F00;
     auto sub = desc.flags&0x00FF;
 
@@ -324,7 +416,7 @@ Uri SpaceEngine::getUri( const SpaceEngine::Desc& desc ) {
         uri = mroot.mapping;
     } else if( main == APKG ) {
         if( desc.package.empty() )
-            throw runtime_error("SpaceEngine::getUri( const SpaceEngine::Desc& desc ): no package name specified.");
+            throw runtime_error("SpaceEngine::getUri( const srcdesc& desc ): no package name specified.");
         if( mapkg.count(desc.package) ) {
             uri = mapkg[desc.package].mapping;
         } else {
@@ -332,7 +424,7 @@ Uri SpaceEngine::getUri( const SpaceEngine::Desc& desc ) {
             uri.path += string("pkg") + dirdvs + desc.package + dirdvs;
         }
     } else {
-        throw runtime_error("SpaceEngine::getPath( const SpaceEngine::Desc& desc ): no main space specified.");
+        throw runtime_error("SpaceEngine::getPath( const srcdesc& desc ): no main space specified.");
     }
 
     if( sub and uri.path.back() != dirdvc ) uri.path += dirdvs;
@@ -407,17 +499,24 @@ bool SpaceEngine::IsDocument(int flags ) {
 }
 
 bool SpaceEngine::IsMainSpace( int flags ) {
-    return (flags & 0x80ff) == 0 and (flags & 0x0f00) != 0;
+    return (flags & (DOCUMENT | SUB) ) == 0 and (flags & MAIN) != 0;
 }
 
 bool SpaceEngine::IsSubSpace( int flags ) {
-    return (flags & DOCUMENT) == 0 and (flags & 0x00ff) != 0;
+    return (flags & DOCUMENT) == 0 and (flags & SUB) != 0;
 }
 int SpaceEngine::PeekMain( int flags ) {
-    return flags & 0x0f00;
+    return flags & MAIN;
 }
 int SpaceEngine::PeekSub( int flags ) {
-    return flags & 0x00ff;
+    return flags & SUB;
+}
+
+int SpaceEngine::HideMain( int flags ) {
+    return flags & ~MAIN;
+}
+int SpaceEngine::HideSub( int flags ) {
+    return flags & ~SUB;
 }
 
 fdistream::fdistream( int fd ):

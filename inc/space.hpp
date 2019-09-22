@@ -17,6 +17,22 @@ using namespace std;
 using uistream = unique_ptr<istream>;
 using uostream = unique_ptr<ostream>;
 
+static const int DOCUMENT = 0x80'00; //文档标志
+static const int ROOT = 0x01'00; //根空间标志
+static const int WORK = 0x02'00; //工作空间标志
+static const int APKG = 0x03'00; //应用空间标志
+static const int ARC = 0x00'01;
+static const int BIN = 0x00'02;
+static const int DOC = 0x00'03;
+static const int INC = 0x00'04;
+static const int LIB = 0x00'05;
+static const int OBJ = 0x00'06;
+static const int SRC = 0x00'07;
+static const int EXT = 0x00'80; //扩展空间标志
+
+static const int MAIN = 0x7f00;
+static const int SUB = 0x00ff;
+
 /**
  * @struct Uri : uri结构
  * @desc :
@@ -44,98 +60,91 @@ struct Uri {
     static const Uri Bad;
 };
 
+/**
+ * @struct srcdesc : 数据源描述符
+ * @desc :
+ *  数据源描述符能唯一确定一个数据源
+ */
+struct srcdesc {
+
+    /**
+     * @member flags : 标志位
+     * @desc : 标志用于抽象描述数据源的空间定位 */
+    int flags;
+
+    /**
+     * @member name : 数据源名称
+     * @desc : 数据源名称是短名称，不包含路径 */
+    string name;
+
+    /**
+     * @member package : 包名
+     * @desc : 当描述符描述的内容在安装的包中时，包名起作用 */
+    string package;
+
+    bool isSpace() const;
+    bool isDocument() const;
+    bool isMainSpace() const;
+    bool isSubSpace() const;
+
+    json toJson() const;
+    static srcdesc fromJson( const json& object );
+
+    bool operator < ( const srcdesc& desc ) const {
+        return flags < desc.flags or name < desc.name or package < desc.package;
+    }
+
+    bool operator == ( const srcdesc& desc ) const {
+        if( flags != desc.flags ) return false;
+        if( isDocument() )
+            if( name != desc.name ) return false;
+        if( (flags & APKG) != 0 )
+            if( package != desc.package ) return false;
+        return true;
+    }
+
+    bool operator != ( const srcdesc& desc ) const {
+        return !((*this) == desc);
+    }
+
+    explicit operator bool()const;
+
+    const static srcdesc error;
+};
+
+/**
+ * @struct fulldesc : 数据源全描述符
+ * @desc :
+ *  数据源全描述符在数据源描述符的基础上增添了
+ *  时间戳和大小信息用于确定数据源的变化
+ */
+struct fulldesc : public srcdesc {
+
+    /**
+     * @member mtime : 修改时间戳
+     * @desc : 修改时间戳是辅助信息，辅助判断数据源是否更新 */
+    time_t mtime;
+
+    /**
+     * @member size : 数据源尺寸
+     * @desc : 若可能的情况下，获取数据源尺寸 */
+    size_t size;
+
+    fulldesc() = default;
+    fulldesc( const srcdesc& desc ):srcdesc(desc),mtime(0),size(0){}
+    fulldesc( srcdesc&& desc ):srcdesc(std::move(desc)),mtime(0),size(0){}
+    json toJson() const;
+    static fulldesc fromJson( const json& object );
+};
+
 class SpaceEngine {
 
     public:
-
-        static const int DOCUMENT = 0x80'00; //文档标志
-        static const int ROOT = 0x01'00; //根空间标志
-        static const int WORK = 0x02'00; //工作空间标志
-        static const int APKG = 0x03'00; //应用空间标志
-        static const int ARC = 0x00'01;
-        static const int BIN = 0x00'02;
-        static const int DOC = 0x00'03;
-        static const int INC = 0x00'04;
-        static const int LIB = 0x00'05;
-        static const int OBJ = 0x00'06;
-        static const int SRC = 0x00'07;
-        static const int EXT = 0x00'80; //扩展空间标志
 
         static const char dirdvc;               //路径分隔符，字符
         static const string dirdvs;             //路径分隔符，字符串
         static const string default_work_path;  //默认工作路径
         static const string default_root_path;  //默认根路径
-
-    public:
-        /**
-         * @struct Desc : 数据源描述符
-         * @desc :
-         *  数据源描述符能唯一确定一个数据源
-         */
-        struct Desc {
-
-            /**
-             * @member flags : 标志位
-             * @desc : 标志用于抽象描述数据源的空间定位 */
-            int flags;
-
-            /**
-             * @member name : 数据源名称
-             * @desc : 数据源名称是短名称，不包含路径 */
-            string name;
-
-            /**
-             * @member package : 包名
-             * @desc : 当描述符描述的内容在安装的包中时，包名起作用 */
-            string package;
-
-            bool isSpace() const;
-            bool isDocument() const;
-            bool isMainSpace() const;
-            bool isSubSpace() const;
-
-            json toJson() const;
-
-            bool operator < ( const Desc& desc ) const {
-                return flags < desc.flags or name < desc.name or package < desc.package;
-            }
-
-            bool operator == ( const Desc& desc ) const {
-                if( flags != desc.flags ) return false;
-                if( isDocument() )
-                    if( name != desc.name ) return false;
-                if( (flags & APKG) != 0 )
-                    if( package != desc.package ) return false;
-                return true;
-            }
-
-            explicit operator bool()const;
-
-            const static Desc Error;
-        };
-
-        /**
-         * @struct FullDesc : 数据源全描述符
-         * @desc :
-         *  数据源全描述符在数据源描述符的基础上增添了
-         *  时间戳和大小信息用于确定数据源的变化
-         */
-        struct FullDesc : public Desc {
-
-            /**
-             * @member mtime : 修改时间戳
-             * @desc : 修改时间戳是辅助信息，辅助判断数据源是否更新 */
-            time_t mtime;
-
-            /**
-             * @member size : 数据源尺寸
-             * @desc : 若可能的情况下，获取数据源尺寸 */
-            size_t size;
-
-            FullDesc() = default;
-            FullDesc( const Desc& desc ):Desc(desc),mtime(0),size(0){}
-            json toJson() const;
-        };
 
     private:
         /**
@@ -149,7 +158,7 @@ class SpaceEngine {
             /**
              * @member desc : 数据源描述符
              * @desc : 数据源的描述符用于确定数据源的唯一身份 */
-            FullDesc desc;
+            fulldesc desc;
 
             /**
              * @member mapping : 数据源映射
@@ -227,9 +236,18 @@ class SpaceEngine {
          * @desc :
          *  枚举空间内的所有内容，将完整的描述符返回
          * @param desc : 要枚举的空间的描述符，若此描述符不指向一个空间则抛出异常。
-         * @return chainz<FullDesc> : 返回所有可枚举项的完全描述符
+         * @return chainz<fulldesc> : 返回所有可枚举项的完全描述符
          */
-        chainz<FullDesc> enumerateContents( const SpaceEngine::Desc& desc );
+        chainz<fulldesc> enumerateContents( const srcdesc& desc );
+
+        /**
+         * @method enumeratePackages : 枚举包
+         * @desc :
+         *  Alioth约定必须将包安装在root/pkg/中
+         *  此方法用于简化枚举包的过程
+         * @return chainz<string> : 所有的包名
+         */
+        chainz<string> enumeratePackages();
 
         /**
          * @method createDocument : 创建文档
@@ -239,7 +257,7 @@ class SpaceEngine {
          * @param mod : 文档的权限配置，默认0644
          * @return bool : 文档创建是否成功
          */
-        bool createDocument( const SpaceEngine::Desc& desc, int mod = 0644 );
+        bool createDocument( const srcdesc& desc, int mod = 0644 );
 
         /**
          * @method createSubSpace : 创建子空间
@@ -248,7 +266,7 @@ class SpaceEngine {
          * @param desc : 子空间的描述符
          * @return bool : 子空间是否创建成功
          */
-        bool createSubSpace( const SpaceEngine::Desc& desc );
+        bool createSubSpace( const srcdesc& desc );
 
         /**
          * @method openDocumentForRead : 打开文档以读取
@@ -257,7 +275,7 @@ class SpaceEngine {
          * @param desc : 文档的描述符
          * @return uistream : 输入流指针
          */
-        uistream openDocumentForRead( const SpaceEngine::Desc& desc );
+        uistream openDocumentForRead( const srcdesc& desc );
 
         /**
          * @method openDocumentForWrite : 打开文档以写入
@@ -266,7 +284,7 @@ class SpaceEngine {
          * @param desc : 文档的描述符
          * @return uostream : 输出流指针
          */
-        uostream openDocumentForWrite( const SpaceEngine::Desc& desc );
+        uostream openDocumentForWrite( const srcdesc& desc );
 
         /**
          * @method reachDataSource : 检查数据源可达性
@@ -275,7 +293,25 @@ class SpaceEngine {
          * @param desc : 数据源描述符
          * @return bool : 数据源是否可达
          */
-        bool reachDataSource( const SpaceEngine::Desc& desc );
+        bool reachDataSource( const srcdesc& desc );
+
+        /**
+         * @method statDataSource : 检查数据源详情
+         * @desc :
+         *  检查数据源是详情
+         * @param desc : 数据源描述符
+         * @return fulldesc : 数据源全描述符
+         */
+        fulldesc statDataSource( const srcdesc& desc );
+
+        /**
+         * @method statDataSource : 检查数据源详情
+         * @desc :
+         *  检查数据源详情，若数据源不在管控范围内，则无论是否可达，都返回error
+         * @param uri : 数据源的统一资源标识符
+         * @return fulldesc : 数据源全描述符
+         */
+        fulldesc statDataSource( Uri uri );
 
         /**
          * @method getPath : 获取文件路径
@@ -285,7 +321,7 @@ class SpaceEngine {
          * @param desc : 资源的描述符
          * @return string : 字符串格式的文件路径
          */
-        string getPath( const SpaceEngine::Desc& desc );
+        string getPath( const srcdesc& desc );
 
         /**
          * @method getUri : 获取资源URI
@@ -294,7 +330,7 @@ class SpaceEngine {
          * @param desc : 资源的描述符
          * @return string : 字符串格式的资源URI
          */
-        Uri getUri( const SpaceEngine::Desc& desc );
+        Uri getUri( const srcdesc& desc );
 
         /**
          * @method enableInteractiveMode : 启动交互模式
@@ -356,6 +392,8 @@ class SpaceEngine {
         static bool IsSubSpace( int );
         static int PeekMain( int );
         static int PeekSub( int );
+        static int HideMain( int );
+        static int HideSub( int );
 };
 
 /**

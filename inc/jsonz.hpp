@@ -102,6 +102,7 @@ class json {
          *  若类型不匹配抛出异常
          */
         int count( const std::string& )const;
+        int count( const std::string&, type )const;
         int count()const;
 
         /**

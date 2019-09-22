@@ -130,6 +130,11 @@ int json::count( const strty& key )const {
     if( mtype != object ) throw std::runtime_error("cannot convert json to object");
     return ((objty*)mdata)->count(key);
 }
+int json::count( const strty& key, type t )const {
+    if( mtype != object ) throw std::runtime_error("cannot convert json to object");
+    if( ((objty*)mdata)->count(key) ) return (*this)[key].is(t);
+    else return 0;
+}
 int json::count()const {
     if( mtype != array ) throw std::runtime_error("cannot convert json to array");
     return ((arrty*)mdata)->size();

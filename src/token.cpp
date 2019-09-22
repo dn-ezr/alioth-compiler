@@ -267,5 +267,17 @@ tuple<bool,string,Diagnostics> token::extractContent() const {
     return {correct,ret,diagnostics};
 }
 
+bool token::islabel() const {
+    return islabel(tx);
+}
+
+bool token::islabel( const string& str ) {
+    if( str.empty() ) return false;
+    if( !isalpha(str[0]) and str[0] != '_' ) return false;
+    for( int i = 1; i < str.size(); i++ )
+        if( !isalnum(str[i]) and str[i] != '_' ) return false;
+    return true;
+}
+
 }
 #endif

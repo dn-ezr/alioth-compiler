@@ -10,6 +10,173 @@
 namespace alioth {
 
 /**
+ * @class CompilerContext : 编译器上下文
+ * @desc :
+ *  编译器用于管理资源的上下文，包含了文档，模块，片段之间的关联关系
+ */
+class CompilerContext {
+    
+    private:
+
+        /**
+         * @member work : 模块部署信息
+         * @desc : 工作空间中的模块部署信息 */
+        map<string,$signature> work;
+
+        /**
+         * @member root : 模块部署信息
+         * @desc : 根空间中的模块部署信息 */
+        map<string,$signature> root;
+
+        /**
+         * @member package : 模块部署信息
+         * @desc : <package-name,<module-name,signature>> 包中的模块部署信息 */
+        map<string,map<string,$signature>> package;
+
+        /**
+         * @member spaceEngine : 空间引擎
+         * @desc : 用于支持数据交互功能 */
+        SpaceEngine& spaceEngine;
+
+        /**
+         * @member diagnostics : 诊断信息
+         * @desc : 用于报告诊断信息 */
+        Diagnostics& diagnostics;
+    
+    public:
+
+        /**
+         * @ctor : 构造函数
+         * @desc :
+         *  用于构造编译器上下文，同时提供空间引擎
+         * @param _spaceEngine : 空间引擎
+         * @param _diagnostics : 日志仓库
+         */
+        CompilerContext( SpaceEngine& _spaceEngine, Diagnostics& _diagnostics );
+
+        /**
+         * @method getModule : 获取模块
+         * @desc :
+         *  此方法用于获取模块
+         * @param name : 模块名
+         * @param space : 模块所属空间，方法会自动提取主空间信息，忽略其他信息。
+         * @param autogen : 是否自动构造不存在的模块
+         * @return $signature : 模块唯一签名
+         */
+        $signature getModule( const string& name, srcdesc space, bool autogen = false );
+
+        /**
+         * @method getModule : 获取模块
+         * @desc :
+         *  此方法用于获取文档所属的模块
+         *  若文档不存在，则获取失败
+         * @param doc : 源文档描述符
+         * @return $signature : 模块签名
+         */
+        $signature getModule( srcdesc doc );
+
+        /**
+         * @method getModule : 获取模块
+         * @desc :
+         *  此方法用于根据fragment中记录的源文档索引模块签名
+         * @param fg : 片段
+         * @return $signature : 模块签名
+         */
+        $signature getModule( $fragment fg );
+
+        /**
+         * @method getModules : 获取所有模块
+         * @desc :
+         *  获取某空间内的所有模块
+         * @param space : 空间描述符
+         * @return signatures : 某空间内的所有模块
+         */
+        signatures getModules( srcdesc space );
+
+        /**
+         * @method countModules : 统计空间内的模块
+         * @desc :
+         *  统计某空间内的模块个数
+         * @param space : 空间描述符
+         * @return size_t : 空间内模块的个数
+         */
+        size_t countModles( srcdesc space );
+
+        /**
+         * @method deleteModule : 删除模块
+         * @desc :
+         *  删除一个模块，描述此模块的所有文档，所有属于此模块的语法树
+         * @param sig : 模块签名
+         * @return bool : 删除动作是否成功
+         */
+        bool deleteModule( $signature sig );
+
+        /**
+         * @method loadModules : 从空间加载所有模块
+         * @desc :
+         *  此方法用于从某个主空间加载所有的模块
+         *  此方法首先清理空间，并试图从缓冲文件读取签名
+         *  接下来方法验证所有读取的签名的正确性，并确保缓冲正确
+         *  若缓冲文件与实际情况有所出入，则重新写入缓冲文件
+         * @param space : 空间描述符，方法会自动提取主空间信息，忽略其他信息。
+         * @return bool : 若加载成功，返回true,若加载失败，返回false,诊断信息会写入容器
+         */
+        bool loadModules( srcdesc space );
+
+        /**
+         * @method clearSpace : 清空空间
+         * @desc :
+         *  清除一个空间所包含的所有模块
+         * @param space : 空间描述符，方法会自动提取主空间信息，忽略其他信息。
+         * @return bool : 清除动作是否成功
+         */
+        bool clearSpace( srcdesc space );
+
+        /**
+         * @method loadDocument : 从空间加载文档
+         * @desc :
+         *  此方法用于从空间加载文档，若文档未曾变化，且未指定forceload动作会被取消，返回原有描述符
+         *  若文档所关联的模块尚不存在会自动创建此模块。
+         *  若文档不可达或不包含合法签名，加载失败，若存在原有文档，则删除。根据文档后缀名和是否存在原有文档决定是否给出报错。
+         *  为节省开销，此时不建立语法树
+         * @param doc : 文档描述符
+         * @param forceload : 是否强制加载行为，即使从描述符看不出文档的变化。
+         */
+        fulldesc loadDocument( srcdesc doc, bool forceload = false );
+        fulldesc loadDocument( fulldesc doc, bool forceload = false );
+
+        /**
+         * @method unloadDocument : 卸载文档
+         * @desc :
+         *  卸载一个文档，若文档不存在，则卸载失败。
+         *  卸载后，删除文档相关联的语法树，若卸载后文档所属模块没有更多文档，且未设置keepmodule,则自动删除模块
+         * @param doc : 欲删除的文档
+         * @param keepmodule : 是否保留空的模块
+         * @return bool : 是否成功卸载文档
+         */
+        bool unloadDocument( srcdesc doc, bool keepmodule = false );
+
+        /**
+         * @method registerFragment : 向文档绑定语法树
+         * @desc :
+         *  向文档绑定语法树，只要文档存在就会成功
+         * @param doc : 文档描述符
+         * @param fg : 片段
+         * @return bool : 是否绑定成功
+         */
+        bool registerFragment( srcdesc doc, $fragment fg = nullptr );
+
+        /** 
+         * @method getFragment : 获取片段
+         * @desc :
+         *  此方法用于从源文档检索对应的语法树
+         * @param doc : 文档描述符
+         * @return $fragment : 片段
+         */
+        $fragment getFragment( srcdesc doc );
+};
+
+/**
  * @class AbstractCompiler : 抽象编译器
  * @desc :
  *  抽象编译器作为基类，统一所有编译器内核的共性。
@@ -19,11 +186,11 @@ class AbstractCompiler {
     protected:
 
         /**
-         * @enum DiagnosticsMethod : 诊断方法
+         * @enum DiagnosticMethod : 诊断方法
          * @desc :
          *  用于表述诊断方法的枚举
          */
-        enum DiagnosticsMethod {
+        enum DiagnosticMethod {
             STRING, // 将诊断信息组织成为字符串
             JSON    // 将诊断信息组织成为JSON结构体
         };
@@ -33,7 +200,7 @@ class AbstractCompiler {
          * @desc :
          *  用于表述诊断信息的发送目标的结构体
          */
-        struct DiagnosticsDestination {
+        struct DiagnosticDestination {
 
             /**
              * @member fd : 文件描述符
@@ -60,14 +227,14 @@ class AbstractCompiler {
         DiagnosticEngine* diagnosticEngine = nullptr;
 
         /**
-         * @member diagnosticsMethod : 诊断方法
+         * @member diagnosticMethod : 诊断方法
          * @desc : 记录对诊断方法的配置 */
-        DiagnosticsMethod diagnosticsMethod = STRING;
+        DiagnosticMethod diagnosticMethod = STRING;
 
         /**
-         * @member diagnosticsDestination : 诊断流向
+         * @member diagnosticDestination : 诊断流向
          * @desc : 记录诊断信息的流向配置 */
-        DiagnosticsDestination diagnosticsDestination = {fd :1};
+        DiagnosticDestination diagnosticDestination = {fd :1};
 
         /**
          * @member diagnostics : 诊断信息
@@ -107,20 +274,20 @@ class AbstractCompiler {
         virtual int execute() = 0;
 
         /**
-         * @method configureDiagnosticsMethod : 配置诊断方法
+         * @method configureDiagnosticMethod : 配置诊断方法
          * @desc :
          *  通过命令行参数配置诊断方法，配置若产生了错误则自动填写诊断信息
          * @param m : 命令行参数中的诊断方法
          */
-        bool configureDiagnosticsMethod( const string& m );
+        bool configureDiagnosticMethod( const string& m );
 
         /**
-         * @method gonfigureDiagnosticsDestination : 配置诊断信息流向
+         * @method gonfigureDiagnosticDestination : 配置诊断信息流向
          * @desc :
          *  通过命令行参数配置诊断信息的流向，配置若产生了错误则自动填写诊断信息
          * @param m : 命令行参数中的诊断信息流向
          */
-        bool configureDiagnosticsDestination( const string& d );
+        bool configureDiagnosticDestination( const string& d );
 };
 
 /**
@@ -158,33 +325,20 @@ class BasicCompiler : public AbstractCompiler {
 class AliothCompiler : public AbstractCompiler {
 
     private:
-
         /**
          * @member target : 目标信息
          * @desc : 描述执行目标 */
         CompilingTarget target;
 
         /**
-         * @member work, root : 模块部署信息
-         * @desc : 工作空间和根空间中的模块部署信息,此信息仅在依赖关系补全时被使用 */
-        map<string,$signature> work, root;
-
-        /**
-         * @member package : 模块部署信息
-         * @desc : 包中的模块部署信息，此信息仅在依赖关系补全时使用 */
-        map<string,map<string,$signature>> package;
-
-        /**
          * @member target_modules : 目标模块
-         * @desc :
-         *  存储所有目标所涉及的模块的签名 */
+         * @desc : 存储所有目标所涉及的模块的签名 */
         signatures target_modules;
 
         /**
-         * @member dep_cache : 依赖缓冲
-         * @desc :
-         *  存储依赖描述符对模块签名的指向性信息 */
-        map<$depdesc, tuple<$signature,SpaceEngine::Desc>> dep_cache;
+         * @member context : 编译器上下文
+         * @desc : 用于集中管理编译资源的上下文环境 */
+        CompilerContext context;
     public:
         /**
          * @ctor : 构造函数
@@ -198,17 +352,6 @@ class AliothCompiler : public AbstractCompiler {
         int execute() override;
     
     private:
-        /**
-         * @method syncSignatures : 同步模块签名
-         * @desc :
-         *  从一个空间读取模块签名。
-         *  首先读取空间部署缓冲文件，然后逐一确认缓冲信息的可信度。
-         *  若有信息过期或存在缺失则重新构建缺失部分的缓冲。
-         *  接下来从缓冲信息中恢复签名，直接写入对应存储空间
-         * @param space : 指向某个主空间的空间描述符
-         * @return bool : 任务是否成功执行，若任务失败则错误信息被写入日志
-         */
-        bool syncSignatures( SpaceEngine::Desc space );
 
         /**
          * @method detectInvolvedModules : 检测涉及模块
@@ -239,18 +382,28 @@ class AliothCompiler : public AbstractCompiler {
         bool confirmModuleCompleteness( $signature mod, chainz<$signature> padding = {} );
 
         /**
-         * @operator () : 解算依赖空间
+         * @method calculateDependencySpace : 解算依赖空间
          * @desc :
          *  解算依赖描述符所指向的模块所在的空间
          *  此方法不依赖目的模块或目的空间真实存在
          *  此方法要求依赖描述符所在的模块签名的空间被正确填写
          *  此方法的计算结果不一定是一个可达的空间！
          * @param dep : 依赖描述符
-         * @return SpaceEngine::Desc : 空间描述符
+         * @return srcdesc : 空间描述符
          */
-        SpaceEngine::Desc calculateDependencySpace( $depdesc dep );
+        srcdesc calculateDependencySpace( $depdesc dep );
 
-        tuple<$signature,SpaceEngine::Desc> calculateDependencySignature( $depdesc dep );
+        /**
+         * @method calcaulateDependencySignature : 解算依赖签名
+         * @desc :
+         *  此方法用于解算依赖描述符所指向的模块签名
+         *  若依赖所指向的空间没有模块，则尝试加载空间中的所有模块
+         *  若依然未找到模块，则失败
+         * @param dep : 依赖描述符
+         * @param space : [输出]若需要，用于存储依赖所在空间
+         * @return $signature : 模块签名
+         */
+        $signature calculateDependencySignature( $depdesc dep, srcdesc* space = nullptr );
 };
 
 class PackageManager : public AbstractCompiler {

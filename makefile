@@ -27,7 +27,13 @@ init:
 clean:
 	rm -rf obj/*.o bin/*
 
-install:
+# This target is used for test purpose only !
+# copy all configuration files to root .
+# copy program to root path .
+# copy completion file to bash-completion folder .
+install: $(TARGET) ./doc/alioth
 	sudo cp doc/*.json /usr/lib/alioth/doc/
+	sudo cp $(TARGET) /usr/bin/
+	sudo cp ./doc/alioth /usr/share/bash-completion/completions/
 
-.PHONY: init clean build install
+.PHONY: init clean install
