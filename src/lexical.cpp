@@ -14,7 +14,7 @@ tokens LexicalContext::perform() {
     state = 1;
     stay = false;
     synst = 1;
-    T = token(VT::R::ERR);
+    T = token(VT::R::BEG);
     ret.clear();
     ret << std::move(T);
     T.bl = begl = 1;
@@ -200,7 +200,8 @@ tokens LexicalContext::perform() {
             else check(VT::L::LABEL,false);
             break;
         case 24:
-            if( pre == 'o' ) test(VT::LOOP,1);
+            if( pre == 'e' ) test(VT::LET,1);
+            else if( pre == 'o' ) test(VT::LOOP,1);
             else if( islabel(pre) ) state = 4;
             else check(VT::L::LABEL,false);
             break;
@@ -277,7 +278,8 @@ tokens LexicalContext::perform() {
             else check(VT::L::LABEL,false);
             break;
         case 37:
-            if( pre == 'o' ) test(VT::VOID,1);
+            if( pre == 'a' ) test(VT::VAR,1);
+            else if( pre == 'o' ) test(VT::VOID,1);
             else if( islabel(pre) ) state = 4;
             else check(VT::L::LABEL,false);
             break;

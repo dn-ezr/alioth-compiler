@@ -12,15 +12,15 @@ using namespace std;
  *  终结符词汇表将所有终结符使用数字加以区别
  *  利用行号区别各个值
  */
-#define DEFINE(x) const static int x = __LINE__ + offset;
+#define DEFINE(x) constexpr int x = __LINE__ + offset;
 namespace VT { // vocabulary-terminal
-    const static int offset = 100;
+    constexpr int offset = 100;
     
     DEFINE(min)
     namespace R { // reserved token
-        const static int ERR = 0;
-        const static int BEG = 1;
-        const static int END = -1;
+        constexpr int ERR = 0;
+        constexpr int BEG = 1;
+        constexpr int END = -1;
     }
     namespace O { // operator
         DEFINE(ASSIGN)
@@ -132,6 +132,7 @@ namespace VT { // vocabulary-terminal
     DEFINE(INT32)
     DEFINE(INT64)
     DEFINE(INT8)
+    DEFINE(LET)
     DEFINE(LOOP)
     DEFINE(META)
     DEFINE(METHOD)
@@ -152,6 +153,7 @@ namespace VT { // vocabulary-terminal
     DEFINE(UINT32)
     DEFINE(UINT64)
     DEFINE(UINT8)
+    DEFINE(VAR)
     DEFINE(VOID)
 
     /** @max : 用于方便随时确定终结符的最大边界 */

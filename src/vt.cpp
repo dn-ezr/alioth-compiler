@@ -81,6 +81,7 @@ const std::map<int,std::string> alioth::VT::written_table = {
     {VT::INT32,"int32"},
     {VT::INT64,"int64"},
     {VT::INT8,"int8"},
+    {VT::LET,"let"},
     {VT::LOOP,"loop"},
     {VT::META,"meta"},
     {VT::METHOD,"method"},
@@ -101,6 +102,7 @@ const std::map<int,std::string> alioth::VT::written_table = {
     {VT::UINT32,"uint32"},
     {VT::UINT64,"uint64"},
     {VT::UINT8,"uint8"},
+    {VT::VAR,"var"},
     {VT::VOID,"void"}
 };
 

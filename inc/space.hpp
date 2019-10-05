@@ -17,21 +17,21 @@ using namespace std;
 using uistream = unique_ptr<istream>;
 using uostream = unique_ptr<ostream>;
 
-static const int DOCUMENT = 0x80'00; //文档标志
-static const int ROOT = 0x01'00; //根空间标志
-static const int WORK = 0x02'00; //工作空间标志
-static const int APKG = 0x03'00; //应用空间标志
-static const int ARC = 0x00'01;
-static const int BIN = 0x00'02;
-static const int DOC = 0x00'03;
-static const int INC = 0x00'04;
-static const int LIB = 0x00'05;
-static const int OBJ = 0x00'06;
-static const int SRC = 0x00'07;
-static const int EXT = 0x00'80; //扩展空间标志
+constexpr int DOCUMENT = 0x80'00; //文档标志
+constexpr int ROOT = 0x01'00; //根空间标志
+constexpr int WORK = 0x02'00; //工作空间标志
+constexpr int APKG = 0x03'00; //应用空间标志
+constexpr int ARC = 0x00'01;
+constexpr int BIN = 0x00'02;
+constexpr int DOC = 0x00'03;
+constexpr int INC = 0x00'04;
+constexpr int LIB = 0x00'05;
+constexpr int OBJ = 0x00'06;
+constexpr int SRC = 0x00'07;
+constexpr int EXT = 0x00'80; //扩展空间标志
 
-static const int MAIN = 0x7f00;
-static const int SUB = 0x00ff;
+constexpr int MAIN = 0x7f00;
+constexpr int SUB = 0x00ff;
 
 /**
  * @struct Uri : uri结构

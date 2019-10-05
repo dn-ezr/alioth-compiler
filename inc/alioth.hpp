@@ -18,14 +18,16 @@ namespace alioth {
 
 #define __language_ver__  std::tuple<int,int>(0,9)
 #define __language_ver_str__ string("0.9")
-#define __compiler_ver__ std::tuple<int,int,int>(0,2,0)
-#define __compiler_ver_str__ string("0.3.0")
+#define __compiler_ver__ std::tuple<int,int,int>(0,3,1)
+#define __compiler_ver_str__ string("0.3.1")
 
 #ifdef __ALIOTH_DEBUG__
 #define internal_error diagnostics[__FILE__]("internal",token::line(__LINE__))
 #else
-#define internal_error
+#define internal_error 0
 #endif
+
+#define not_ready_yet diagnostics[__FILE__]("yet", token::line(__LINE__))
 }
 
 #endif

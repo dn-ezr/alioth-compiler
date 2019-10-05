@@ -1,6 +1,8 @@
 #ifndef __syntax__
 #define __syntax__
 
+#include <set>
+#include "type.hpp"
 #include "token.hpp"
 #include "agent.hpp"
 #include "jsonz.hpp"
@@ -15,12 +17,55 @@ namespace alioth {
 #define SYNTAXES(x) SYNTAX(x); using x##es = chainz<$##x>
 
 SYNTAX(node);
+
+/** inherit from node */
 SYNTAXS(depdesc);
 SYNTAXS(signature);
 SYNTAXS(fragment);
-SYNTAX(module);
 SYNTAXS(definition);
 SYNTAXS(implementation);
+SYNTAXS(statement);
+
+/** inherit from definition **/
+SYNTAXS(classdef);      //class definition 类定义
+SYNTAXS(aliasdef);      //alias definition 别名定义
+SYNTAXS(enumdef);       //enumerate definition 枚举定义
+SYNTAXS(attrdef);       //attribute definition 属性定义
+SYNTAXS(opdef);         //operator definition 运算符定义
+SYNTAXS(metdef);        //method definition 方法定义
+
+/** inherit from implementation */
+SYNTAXS(opimpl);        //operator implementation 运算符实现
+SYNTAXS(metimpl);       //method implementation 方法实现
+
+/** inherit from statement */
+SYNTAXES(blockstmt);    //block statement 代码块
+SYNTAXES(exprstmt);     //expression statement 表达式语句
+SYNTAXES(branchstmt);   //branch statement 分支语句
+SYNTAXES(switchstmt);   //switch statement 选择语句
+SYNTAXES(assumestmt);   //assume statement 类型推断语句
+SYNTAXES(loopstmt);     //loop statement 循环语句
+SYNTAXES(fctrlstmt);    //flow control statement 流控制语句
+SYNTAXES(unwindstmt);   //unwind statement 执行流展开语句
+SYNTAXES(doretstmt);    //do return statement 返回过程挂载语句
+
+/**inherit from expr */
+SYNTAXES(nameexpr);     //name expression 名称表达式
+SYNTAXES(typeexpr);     //type expression 类型表达式
+SYNTAXES(monoexpr);     //mono expression 单目运算表达式
+SYNTAXES(binexpr);      //binary expression 双目运算表达式
+SYNTAXES(valexpr);      //value expression 数值表达式
+SYNTAXES(lctexpr);      //list constructing expression 列表构造表达式
+SYNTAXES(sctexpr);      //structural constructing expression 结构构造表达式
+SYNTAXES(tctexpr);      //tuple constructing expression 元祖构造表达式
+SYNTAXES(callexpr);     //call expression 调用表达式
+SYNTAXES(lambdaexpr);   //lambda expression lambda表达式
+
+/** module 并不是语法结构，而是语义结构，抽象层次比语法树节点要高一层 */
+struct module;
+using $module = agent<module>;
+using modules = chainz<$module>;
+
 using $scope = node*;
 
 /**
@@ -40,6 +85,7 @@ struct node : public thing {
             IMPLEMENTATION,     // 实现
             STATEMENT,          // 语句
 
+            ALIASDEF,           // 别名定义
             CLASSDEF,           // 类定义
             ENUMDEF,            // 枚举定义
             METHODDEF,          // 方法定义
@@ -50,6 +96,8 @@ struct node : public thing {
             OPERATORIMPL,       // 运算符实现
 
             EXPRESSION,         // 表达式语句
+            NAMEEXPR,           // 名称表达式
+            TYPEEXPR,           // 类型表达式
         };
 
     private:
@@ -92,9 +140,10 @@ struct node : public thing {
          * @method isscope : 判断是否为作用域
          * @desc :
          *  判断语法树节点是否能作为作用域被记录在子节点中
+         *  默认返回false
          * @return bool : 判断结果
          */
-        virtual bool isscope()const = 0;
+        virtual bool isscope()const;
 
         /**
          * @method setScope : 设置作用域
@@ -236,7 +285,6 @@ struct depdesc : public node {
     public:
         virtual ~depdesc() = default;
         bool is( type )const override;
-        bool isscope()const override;
         json toJson()const;
         static $depdesc fromJson( const json& object );
 };
@@ -269,6 +317,278 @@ struct fragment : public node {
         virtual ~fragment() = default;
         bool is( type )const override;
         bool isscope()const override;
+};
+
+/**
+ * @struct defiition : 定义
+ * @desc :
+ *  Alioth中所有的定义语法结构都继承自此类
+ *  类定义，枚举定义，运算符定义，方法定义，属性定义
+ */
+struct definition : public node {
+
+    public:
+        /**
+         * @member name : 定义名称
+         * @desc : 所有定义都有名称，命名规则都相同 */
+        token name;
+
+        /**
+         * @member visibility : 可见性修饰
+         * @desc : 可见性修饰词，可使用public,private,protected或+,-,* */
+        token visibility;
+
+        /**
+         * @member premise : 定义前提
+         * @desc : 实现此定义必备的前提条件，内容是谓词的下标，若此容器为空，表示不需要前提条件 */
+        std::set<int> premise;
+};
+
+/**
+ * @struct statement : 语句
+ * @desc : 所有执行块以及执行块的内容都被称为语句
+ */
+struct statement : public node {
+
+};
+
+/**
+ * @struct aliasdef : 别名定义
+ * @desc :
+ *  在定义作用域中，使用let关键字定义别名
+ *  let <label> = <nameexpr>
+ */
+struct aliasdef : public definition {
+    public:
+
+        /**
+         * @member target : 别名目标
+         * @desc : 别名所指向的目标数据类型，
+         * 虽然语法规定此语法规则用于给类定义制定别名，但在语义分析中，
+         * 此结构单纯起到无差别转发功能，所以任何具名语法结构都可以定制别名 */
+        $nameexpr tagret;
+
+    public:
+
+        virtual ~aliasdef() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct classdef : 类定义
+ * @desc :
+ *  类定义所携带的信息包含类定义的内容定义，类的基类列表，类的模板参数列表
+ *  高级类定义还包含类的谓词。模板类应当包含模板类用例
+ */
+struct classdef : public definition {
+
+    public:
+
+        /**
+         * @struct predi : 谓词单元
+         * @desc :
+         *  谓词单元表达一个谓词条件
+         */
+        struct predi {
+
+            /**
+             * @member vn : 非终结符
+             * @desc : 谓词的非终结符，用于在报错时提供文本坐标信息 */
+            token vn;
+
+            /**
+             * @member targ : 模板参数
+             * @desc : 谓词单元用于给模板参数添加限制，targ用于定位此谓词单元给哪个模板参数添加限制 */
+            token targ;
+
+            /**
+             * @member rule : 谓词规则
+             * @desc : 谓词单元所携带的规则
+             *  0 : 无效
+             *  1 : 元素类型不能为对象                      T != obj
+             *  2 : 元素类型不能为指针                      T != ptr
+             *  3 : 元素类型不能为引用                      T != ref
+             *  4 : 元素类型不能为重载                      T != rel
+             *  5 : 元素类型只能为对象                      T == obj
+             *  6 : 元素类型只能为指针                      T == ptr
+             *  7 : 元素类型只能为引用                      T == ref
+             *  8 : 元素类型只能为重载                      T == rel
+             *  9 : 数据类型不能为指针                      T >> obj
+             *  10: 数据类型必须为指针                      T >> ptr
+             *  11: 数据类型不能基于参数(参数不能为指针)       T <> (dtype) 
+             */
+            int rule;
+
+            /**
+             * @member type : 谓词参数
+             * @desc : 谓词单元涉及数据类型判定时，可能需要一个类型表达式作为参数 */
+            $typeexpr type;
+        };
+
+        /**
+         * @alias predicate : 谓词
+         * @desc :
+         *  谓词由谓词单元构成，表达谓词单元之间取and关系
+         */
+        using predicate = chainz<predi>;
+
+        /**
+         * @alias predicates : 谓词列表
+         * @desc :
+         *  谓词列表用于表示谓词之间的or关系
+         */
+        using predicates = chainz<predicate>;
+
+    public:
+
+        /**
+         * @member abstract : 抽象修饰符
+         * @desc : 修饰此类是否为抽象类 */
+        token abstract;
+
+        /**
+         * @member targf : 模板类模板参数列表形参
+         * @desc : 模板类模板参数列表中个模板参数名称 */
+        tokens targf;
+
+        /**
+         * @member preds : 谓词
+         * @desc : 只有模板类拥有谓词，谓词由谓词表达式构成，谓词表达式由谓词单元构成 */
+         predicates preds;
+
+        /**
+         * @member targs : 模板类模板参数列表实参
+         * @desc : 当确定模板参数列表中每个模板参数的具体数据类型，将产生一个唯一的衍生类定义
+         *  此类定义被称为模板类用例，此用例应当包含模板类实参信息 */
+        typeexpres targs;
+
+        /**
+         * @member supers : 基类列表
+         * @desc : 基类使用名称表达式保存，因为语法阶段无法分析基类是否可达 */
+        nameexpres supers;
+
+        /**
+         * @member contents : 定义内容
+         * @desc : 类定义的内容定义都包含于此，包括子类，运算符，属性定义，方法定义，别名定义 */
+        definitions contents;
+
+        /**
+         * @member usages : 用例
+         * @desc : 模板类用例存储在模板类的usages容器中 */
+        classdefs usages;
+
+    public:
+
+        virtual ~classdef() = default;
+        bool is( type )const override;
+        bool isscope()const override;
+};
+
+struct enumdef : public definition {
+
+};
+
+struct metdef : public definition {
+
+};
+
+struct opdef : public definition {
+
+};
+
+struct attrdef : public definition {
+
+};
+
+/**
+ * @struct exprstmt : 表达式语句
+ * @desc :
+ *  表达式语句表示任何表达式，包括名称表达式，类型表达式，值表达式，单目运算表达式，双目运算表达式，调用表达式，lambda表达式，若干种构造表达式
+ */
+struct exprstmt : public statement {
+
+};
+
+/**
+ * @struct nameexpr : 名称表达式
+ * @desc :
+ *  名称表达式用途广泛，可以用于引用任何具有名称的结构，也因此
+ *  它并不一定总能被求值
+ *  名称表达式可以使用作用域运算符进行链接，以此跨越定义域搜索具名结构
+ */
+struct nameexpr : public exprstmt {
+
+    public:
+        /**
+         * @member name : 名称
+         * @desc : 当前名称表达式所使用的名称 */
+        token name;
+
+        /**
+         * @member targs : 模板参数列表
+         * @desc : 模板参数列表实参，若引用模板类，必须传入模板参数，
+         * 产生模板类用例，才能将其作为类定义使用
+         * [思考]:既然这样，不如拒绝模板类成为类定义语法结构，
+         *  而是定义新的关键字template引导一个和类定义很相似的模板定义 */
+        typeexpres targs;
+
+        /**
+         * @member next : 下一级
+         * @desc : 名称表达式中，由作用域运算符链接的，右侧的名称表达式是左侧名称表达式的next
+         *  严格意义上来讲，next表达的是进入作用域内部，进行细化搜索，应当视为sub可能更合适 */
+        $nameexpr next;
+
+    public:
+        virtual ~nameexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct typeexpr : 类型表达式
+ * @desc :
+ *  类型表达式的前身就是Alioth 0.2.0中的typeuc，以前被称为名称用例
+ *  现在，我们认为类型表达式是表达式的一个子类型，它的特点是不总能被求值
+ *  没错，有些情况下类型表达式也可能被求值，比如用于表示一个类的实体
+ */
+struct typeexpr : public exprstmt {
+
+    public:
+
+        /**
+         * @member id : 类型ID
+         * @desc : 类型ID可以用于表明类型的基本信息，并确定sub的语义 */
+        typeid_t id;
+
+        /**
+         * @member sub : 类型子信息
+         * @desc : 由类型ID决定其语义
+         *  UnknownType : nullptr
+         *  NamedType : nameexpr
+         *  ThisClassType : nullptr
+         *  UnsolvableType : nullptr
+         *  CompositeType : classdef
+         *  EntityType : classdef
+         *  ConstraintedPointerType : typeexpr
+         *  UnconstraintedPointerType : typeexpr
+         *  NullPointerType : nullptr
+         *  VoidType : nullptr
+         *  BooleanType : nullptr
+         *  Uint8Type : nullptr
+         *  Uint16Type : nullptr
+         *  Uint32Type : nullptr
+         *  Uint64Type : nullptr
+         *  Int8Type : nullptr
+         *  Int16Type : nullptr
+         *  Int32Type : nullptr
+         *  Int64Type : nullptr
+         *  Float32Type : nullptr
+         *  Float64Type : nullptr */
+        anything sub;
+
+    public:
+
+        virtual ~typeexpr() = default;
+        bool is( type )const override;
 };
 
 /**
@@ -396,6 +716,13 @@ class SyntaxContext {
          */
         $signature extractSignature( bool diagnostic = true );
 
+        /**
+         * @method constructFragment : 构建片段
+         * @desc :
+         *  从源代码中提取模块的片段信息
+         * @return $fragment : 片段
+         */
+        $fragment constructFragment();
     private:
         /**
          * @method movi : 移进方法
@@ -454,8 +781,42 @@ class SyntaxContext {
 
     private:
 
-        $signature constructModuleSignature( $scope scope, bool diagnostic = true );
-        $depdesc constructDependencyDescriptor( $scope scope, bool diagnostic = true );
+        $signature constructModuleSignature( bool diagnostic );
+        $depdesc constructDependencyDescriptor( $scope scope, bool diagnostic );
+
+        $aliasdef constructAliasDefinition( $scope scope );
+        $classdef constructClassDefinition( $scope scope );
+        $enumdef constructEnumerateDefinition( $scope scope );
+        $attrdef constructAttributeDefinition( $scope scope );
+        $opdef constructOperatorDefinition( $scope scope );
+        $metdef constructMethodDefinition( $scope scope );
+
+        $opimpl constructOperatorImplementation( $scope scope );
+        $metimpl constructMethodImplementation( $scope scope );
+
+        $blockstmt constructBlockStatement( $scope scope );
+        $exprstmt constructExpressionStatement( $scope scope );
+        $branchstmt constructBranchStatement( $scope scope );
+        $switchstmt constructSwitchStatement( $scope scope );
+        $assumestmt constructAssumeStatement( $scope scope );
+        $loopstmt constructLoopStatement( $scope scope );
+        $fctrlstmt constructFlowControlStatement( $scope scope );
+        $unwindstmt constructUnwindStatement( $scope scope );
+        $doretstmt constructDoReturnStatement( $scope scope );
+
+        // @param absorb : 是否吸收左尖括号为模板参数列表的开头符号
+        $nameexpr constructNameExpression( $scope scope, bool absorb );
+
+        // @param absorb : 用于表明是否已经处于可以吸收'<'的语境，此值可能由于class关键字的引导二改变
+        $typeexpr constructTypeExpression( $scope scope, bool absorb );
+        $monoexpr constructMonoExpression( $scope scope );
+        $binexpr constructBinaryExpression( $scope scope );
+        $valexpr constructValueExpression( $scope scope );
+        $lctexpr constructListConstructingExpression( $scope scope );
+        $sctexpr constructStructuralConstructingExpression( $scope scope );
+        $tctexpr constructTupleConstructingExpression( $scope scope );
+        $callexpr constructCallExpression( $scope scope );
+        $lambdaexpr constructLambdaExpression( $scope scope );
 };
 
 }

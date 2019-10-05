@@ -130,85 +130,63 @@ bool token::is( CT v )const {
             );
         case CT::ELETYPE:
             return is(
-                VT::OBJ,VT::PTR,VT::REF,VT::REL
+                VT::OBJ,VT::PTR,VT::REF,VT::REL,VT::VAR
             );
-        case CT::IMPLEMENTATION:
-            return is(
-                VN::BRANCH,VN::LOOP,VN::CONTROL,VN::BLOCK,VN::EXPRESSION
-            );
-        case CT::MF_ABSTRACT: return tx == "abstract";
-        case CT::MF_REV: return tx == "rev";
-        case CT::MF_ISM: return tx == "ism";
-        case CT::MF_PREFIX: return tx == "prefix";
-        case CT::MF_SUFFIX: return tx == "suffix";
-        case CT::MF_ATOMIC: return tx == "atomic";
-        case CT::MF_RAW: return tx == "raw";
-        case CT::LB_SCTOR: return tx == "sctor";
-        case CT::LB_LCTOR: return tx == "lctor";
-        case CT::LB_CCTOR: return tx == "cctor";
-        case CT::LB_MCTOR: return tx == "mctor";
-        case CT::LB_DTOR: return tx == "dtor";
-        case CT::LB_MEMBER: return tx == "member" or is(VT::O::MEMBER);
-        case CT::LB_WHERE: return tx == "where" or is(VT::O::SHARP);
-        case CT::LB_MOVE: return tx == "move";
-        case CT::LB_NEGATIVE: return tx == "negative";
-        case CT::LB_BITREV: return tx == "bitrev" or is(VT::O::B::REV);
-        case CT::LB_INCREASE: return tx == "increase" or is(VT::O::INCRESS);
-        case CT::LB_DECREASE: return tx == "decrease" or is(VT::O::DECRESS);
-        case CT::LB_INDEX: return tx == "index";
-        case CT::LB_ADD: return tx == "add" or is(VT::O::PLUS);
-        case CT::LB_SUB: return tx == "sub" or is(VT::O::MINUS);
-        case CT::LB_MUL: return tx == "mul" or is(VT::O::MUL);
-        case CT::LB_DIV: return tx == "div" or is(VT::O::DIV);
-        case CT::LB_MOL: return tx == "mol" or is(VT::O::MOL);
-        case CT::LB_BITAND: return tx == "bitand" or is(VT::O::B::AND);
-        case CT::LB_BITOR: return tx == "bitor" or is(VT::O::B::OR);
-        case CT::LB_BITXOR: return tx == "bitxor" or is(VT::O::B::XOR);
-        case CT::LB_SHL: return tx == "shl" or is(VT::O::SHL);
-        case CT::LB_SHR: return tx == "shr" or is(VT::O::SHR);
-        case CT::LB_LT: return tx == "lt" or is(VT::O::LT);
-        case CT::LB_GT: return tx == "gt" or is(VT::O::GT);
-        case CT::LB_LE: return tx == "le" or is(VT::O::LE);
-        case CT::LB_GE: return tx == "ge" or is(VT::O::GE);
-        case CT::LB_EQ: return tx == "eq" or is(VT::O::EQ);
-        case CT::LB_NE: return tx == "ne" or is(VT::O::NE);
-        case CT::LB_ASSIGN: return tx == "assign" or is(VT::O::ASSIGN);
-        case CT::OPL:
-            return is(
-                VN::O::INDEX,CT::OPL_ASSIGN,
-                VN::O::SCTOR, VN::O::LCTOR, VN::O::CCTOR, VN::O::MCTOR, VN::O::DTOR, VN::O::MEMBER, VN::O::WHERE, VN::O::MOVE,VN::O::AS,
-                VN::O::NEGATIVE, VN::O::B::REV, VN::O::INCREASE, VN::O::DECREASE,VN::O::NOT,
-                VN::O::ADD, VN::O::SUB, VN::O::MUL, VN::O::DIV, VN::O::MOL,
-                VN::O::B::AND, VN::O::B::OR, VN::O::B::XOR, VN::O::SHL, VN::O::SHR,
-                VN::O::LT, VN::O::GT, VN::O::LE, VN::O::GE, VN::O::EQ, VN::O::NE,
-                VN::O::AND,VN::O::OR,VN::O::XOR
-            );
-        case CT::OPL_ASSIGN:
-            return is(
-                VN::O::A::ASSIGN,
-                VN::O::A::ADD, VN::O::A::SUB, VN::O::A::MUL, VN::O::A::DIV, VN::O::A::MOL,
-                VN::O::A::SHL, VN::O::A::SHR, VN::O::A::B::AND, VN::O::A::B::OR, VN::O::A::B::XOR
-            );
-        case CT::OPL_SPECIAL:
-            return is(
-                VN::O::SCTOR, VN::O::LCTOR, VN::O::CCTOR, VN::O::MCTOR, VN::O::DTOR, VN::O::WHERE, VN::O::MOVE, VN::O::MEMBER, VN::O::AS
-            );
-        case CT::OPL_MONO:
-            return is(
-                VN::O::NEGATIVE, VN::O::B::REV, VN::O::INCREASE, VN::O::DECREASE, VN::O::NOT
-            );
-        case CT::OPL_BINO:
-            return is(
-                CT::OPL_ASSIGN,
-                VN::O::ADD,VN::O::SUB,VN::O::MUL,VN::O::DIV,VN::O::MOL,
-                VN::O::B::AND,VN::O::B::OR,VN::O::B::XOR,VN::O::SHL,VN::O::SHR,
-                VN::O::LT,VN::O::GT,VN::O::LE,VN::O::GE,VN::O::EQ,VN::O::NE,
-                VN::O::AND,VN::O::OR,VN::O::XOR
-            );
-        case CT::PP_ON: return tx == "on";
-        case CT::PP_THEN: return tx == "then";
+        // case CT::MF_ABSTRACT: return tx == "abstract";
+        // case CT::MF_REV: return tx == "rev";
+        // case CT::MF_ISM: return tx == "ism";
+        // case CT::MF_PREFIX: return tx == "prefix";
+        // case CT::MF_SUFFIX: return tx == "suffix";
+        // case CT::MF_ATOMIC: return tx == "atomic";
+        // case CT::MF_RAW: return tx == "raw";
+        // case CT::LB_SCTOR: return tx == "sctor";
+        // case CT::LB_LCTOR: return tx == "lctor";
+        // case CT::LB_CCTOR: return tx == "cctor";
+        // case CT::LB_MCTOR: return tx == "mctor";
+        // case CT::LB_DTOR: return tx == "dtor";
+        // case CT::LB_MEMBER: return tx == "member" or is(VT::O::MEMBER);
+        // case CT::LB_WHERE: return tx == "where" or is(VT::O::SHARP);
+        // case CT::LB_MOVE: return tx == "move";
+        // case CT::LB_NEGATIVE: return tx == "negative";
+        // case CT::LB_BITREV: return tx == "bitrev" or is(VT::O::B::REV);
+        // case CT::LB_INCREASE: return tx == "increase" or is(VT::O::INCRESS);
+        // case CT::LB_DECREASE: return tx == "decrease" or is(VT::O::DECRESS);
+        // case CT::LB_INDEX: return tx == "index";
+        // case CT::LB_ADD: return tx == "add" or is(VT::O::PLUS);
+        // case CT::LB_SUB: return tx == "sub" or is(VT::O::MINUS);
+        // case CT::LB_MUL: return tx == "mul" or is(VT::O::MUL);
+        // case CT::LB_DIV: return tx == "div" or is(VT::O::DIV);
+        // case CT::LB_MOL: return tx == "mol" or is(VT::O::MOL);
+        // case CT::LB_BITAND: return tx == "bitand" or is(VT::O::B::AND);
+        // case CT::LB_BITOR: return tx == "bitor" or is(VT::O::B::OR);
+        // case CT::LB_BITXOR: return tx == "bitxor" or is(VT::O::B::XOR);
+        // case CT::LB_SHL: return tx == "shl" or is(VT::O::SHL);
+        // case CT::LB_SHR: return tx == "shr" or is(VT::O::SHR);
+        // case CT::LB_LT: return tx == "lt" or is(VT::O::LT);
+        // case CT::LB_GT: return tx == "gt" or is(VT::O::GT);
+        // case CT::LB_LE: return tx == "le" or is(VT::O::LE);
+        // case CT::LB_GE: return tx == "ge" or is(VT::O::GE);
+        // case CT::LB_EQ: return tx == "eq" or is(VT::O::EQ);
+        // case CT::LB_NE: return tx == "ne" or is(VT::O::NE);
+        // case CT::LB_ASSIGN: return tx == "assign" or is(VT::O::ASSIGN);
+        // case CT::PP_ON: return tx == "on";
+        // case CT::PP_THEN: return tx == "then";
         default:
             return false;
+    }
+}
+
+bool token::is( PVT p )const {
+    switch( p ) {
+        case PVT::PRIVATE:
+            return tx == "private" or tx == "-";
+        case PVT::PROTECTED:
+            return tx == "protected" or tx == "*";
+        case PVT::PUBLIC:
+            return tx == "public" or tx == "+";
+        case PVT::ABSTRACT:
+            return tx == "abstract";
+        default: return false;
     }
 }
 
