@@ -25,6 +25,7 @@ SYNTAXS(fragment);
 SYNTAXS(definition);
 SYNTAXS(implementation);
 SYNTAXS(statement);
+SYNTAXS(eprototype);
 
 /** inherit from definition **/
 SYNTAXS(classdef);      //class definition 类定义
@@ -84,6 +85,7 @@ struct node : public thing {
             DEFINITION,         // 定义
             IMPLEMENTATION,     // 实现
             STATEMENT,          // 语句
+            ELEPROTO,           // 元素原型
 
             ALIASDEF,           // 别名定义
             CLASSDEF,           // 类定义
@@ -144,6 +146,7 @@ struct node : public thing {
          * @return bool : 判断结果
          */
         virtual bool isscope()const;
+        #define this_is_scope bool isscope()const override{return true;}
 
         /**
          * @method setScope : 设置作用域
@@ -226,7 +229,7 @@ struct signature : public node {
 
         virtual ~signature() = default;
         bool is( type )const override;
-        bool isscope()const override;
+        this_is_scope
 
         /**
          * @method toJson : 转化为json
@@ -316,7 +319,43 @@ struct fragment : public node {
 
         virtual ~fragment() = default;
         bool is( type )const override;
-        bool isscope()const override;
+        this_is_scope
+};
+
+/**
+ * @struct eprototype : 元素原型
+ * @desc :
+ *  用于描述联系表达一个元素原型的语法结构
+ */
+struct eprototype : public node {
+
+    public:
+        /**
+         * @enum type_t : 元素类型
+         * @desc :
+         *  描述元素类型的枚举 
+         */
+        enum type_t {
+            var, // 自动元素类型
+            obj, // 对象元素
+            ptr, // 指针元素
+            ref, // 引用元素
+            rel, // 重载元素
+        };
+
+    public:
+        /**
+         * @member etype : 元素类型 */
+        type_t etype;
+
+        /**
+         * @member dtype : 数据类型 */
+        $typeexpr dtype;
+
+    public:
+        
+        virtual ~eprototype() = default;
+        bool is( type )const override;
 };
 
 /**
@@ -458,9 +497,9 @@ struct classdef : public definition {
 
         /**
          * @member targs : 模板类模板参数列表实参
-         * @desc : 当确定模板参数列表中每个模板参数的具体数据类型，将产生一个唯一的衍生类定义
+         * @desc : 当确定模板参数列表中每个模板参数的具体元素原型，将产生一个唯一的衍生类定义
          *  此类定义被称为模板类用例，此用例应当包含模板类实参信息 */
-        typeexpres targs;
+        eprototypes targs;
 
         /**
          * @member supers : 基类列表
@@ -481,11 +520,26 @@ struct classdef : public definition {
 
         virtual ~classdef() = default;
         bool is( type )const override;
-        bool isscope()const override;
+        this_is_scope
 };
 
+/**
+ * @struct : 枚举定义
+ * @desc : 枚举定义语法结构
+ */
 struct enumdef : public definition {
 
+    public:
+        /**
+         * @member item : 枚举单元
+         * @desc : 枚举单元的定义，顺序不能被打乱 */
+        tokens items;
+
+    public:
+
+        virtual ~enumdef() = default;
+        bool is( type )const override;
+        this_is_scope
 };
 
 struct metdef : public definition {
@@ -530,7 +584,7 @@ struct nameexpr : public exprstmt {
          * 产生模板类用例，才能将其作为类定义使用
          * [思考]:既然这样，不如拒绝模板类成为类定义语法结构，
          *  而是定义新的关键字template引导一个和类定义很相似的模板定义 */
-        typeexpres targs;
+        eprototypes targs;
 
         /**
          * @member next : 下一级
@@ -589,6 +643,7 @@ struct typeexpr : public exprstmt {
 
         virtual ~typeexpr() = default;
         bool is( type )const override;
+        bool is_type( typeid_t )const;
 };
 
 /**
@@ -783,6 +838,8 @@ class SyntaxContext {
 
         $signature constructModuleSignature( bool diagnostic );
         $depdesc constructDependencyDescriptor( $scope scope, bool diagnostic );
+
+        $eprototype constructElementPrototype( $scope );
 
         $aliasdef constructAliasDefinition( $scope scope );
         $classdef constructClassDefinition( $scope scope );

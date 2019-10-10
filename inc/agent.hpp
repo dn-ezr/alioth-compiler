@@ -7,38 +7,42 @@
 namespace alioth {
 template<typename T> class agent;
 
-class thing {
-    public:     token   phrase;
+class basic_thing {
     protected:  int ref_count;
-        virtual ~thing() {}
+        virtual ~basic_thing() {}
     public: 
-        thing():ref_count(0){}
-        thing( const thing& ) = default;
-        thing(thing&&) = default;
-        thing& operator = ( const thing& ) = default;
-        thing& operator = ( thing&& ) = default;
+        basic_thing():ref_count(0){}
+        basic_thing(const basic_thing&) = default;
+        basic_thing(basic_thing&&) = default;
+        basic_thing& operator = ( const basic_thing& ) = default;
+        basic_thing& operator = ( basic_thing&& ) = default;
         template<typename T>friend class agent;
+};
+
+class thing : public basic_thing {
+    public:     token   phrase;
+    template<typename T>friend class agent;
 };
 
 template<typename T>
 class agent {
 
     private:
-        thing* p;
+        basic_thing* p;
 
-        thing* get(thing* stp)const {
+        basic_thing* get(basic_thing* stp)const {
             if( !stp ) return nullptr;
             stp->ref_count += 1;
             return stp;
         }
-        void fre(thing* tp)const {
+        void fre(basic_thing* tp)const {
             if( tp ) {
                 tp->ref_count -= 1;
                 if( tp->ref_count <= 0 ) delete tp;
             }
         }
     public:
-        agent( thing* t = nullptr):p(get(t)) {
+        agent( basic_thing* t = nullptr):p(get(t)) {
 
         }
         agent( const agent& an ):p(get(an.p)) {
@@ -52,7 +56,7 @@ class agent {
             p = nullptr;
         }
 
-        agent& operator=(thing* t) {
+        agent& operator=(basic_thing* t) {
             fre(p);
             p = get(t);
             return *this;
@@ -91,7 +95,7 @@ class agent {
         }
 };
 
-using anything = agent<thing>;
+using anything = agent<basic_thing>;
 using everything = chainz<anything>;
 }
 #endif

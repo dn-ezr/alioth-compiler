@@ -149,6 +149,32 @@ Uri::operator bool()const {
     return port >= 0;
 }
 
+bool Uri::operator == ( const Uri& an ) const {
+    if( port < 0 and an.port < 0 ) return false;
+    return 
+        scheme == an.scheme and
+        user == an.user and
+        password == an.password and
+        host == an.host and
+        port == an.port and
+        path == an.path and
+        query == an.query and
+        fragment == an.fragment;
+
+}
+
+bool Uri::operator < ( const Uri& an ) const {
+    return
+        scheme < an.scheme and
+        user < an.user and
+        password < an.password and
+        host < an.host and
+        port < an.port and
+        path < an.path and
+        query < an.query and
+        fragment < an.fragment;
+}
+
 bool srcdesc::isSpace() const {
     return SpaceEngine::IsSpace(flags);
 }
@@ -424,7 +450,7 @@ Uri SpaceEngine::getUri( const srcdesc& desc ) {
             uri.path += string("pkg") + dirdvs + desc.package + dirdvs;
         }
     } else {
-        throw runtime_error("SpaceEngine::getPath( const srcdesc& desc ): no main space specified.");
+        throw runtime_error("SpaceEngine::getUri( const srcdesc& desc ): no main space specified.");
     }
 
     if( sub and uri.path.back() != dirdvc ) uri.path += dirdvs;
@@ -459,12 +485,16 @@ uistream SpaceEngine::OpenStreamForRead( int i ) {
 }
 
 uistream SpaceEngine::OpenStreamForRead( Uri uri ) {
-    if( uri.scheme != "file" ) 
-        throw runtime_error("SpaceEngine::OpenStreamForRead( Uri uri ): resource is not located on filesystem.");
-    string path = dirdvs + uri.path;
-    unique_ptr<ifstream> is = std::make_unique<ifstream>(path);
-    if( !is->good() ) return nullptr;
-    return is;
+    if( uri.scheme == "file" ) {
+        string path = dirdvs + uri.path;
+        unique_ptr<ifstream> is = std::make_unique<ifstream>(path);
+        if( !is->good() ) return nullptr;
+        return is;
+    } else if( uri.scheme == "fd" ) {
+        return OpenStreamForRead(stol(uri.path));
+    } else {
+        throw runtime_error("SpaceEngine::OpenStreamForRead( Uri uri ): unsolvable scheme: " + uri.scheme );
+    }
 }
 
 uostream SpaceEngine::OpenStreamForWrite( int i ) {
@@ -472,12 +502,16 @@ uostream SpaceEngine::OpenStreamForWrite( int i ) {
 }
 
 uostream SpaceEngine::OpenStreamForWrite( Uri uri ) {
-    if( uri.scheme != "file" )
-        throw runtime_error("SpaceEngine::OpenStreamForWrite( Uri uri ): resource is not located on filesystem.");
-    string path = dirdvs + uri.path;
-    unique_ptr<ofstream> os = make_unique<ofstream>(path);
-    if( !os->good() ) return nullptr;
-    return os;
+    if( uri.scheme == "file" ){
+        string path = dirdvs + uri.path;
+        unique_ptr<ofstream> os = make_unique<ofstream>(path);
+        if( !os->good() ) return nullptr;
+        return os;
+    } else if( uri.scheme == "fd" ) {
+        return OpenStreamForWrite(stol(uri.path));
+    } else {
+        throw runtime_error("SpaceEngine::OpenStreamForWrite( Uri uri ): unsolvable scheme: " + uri.scheme );
+    }
 }
 
 bool SpaceEngine::ReachDataSource( Uri uri ) {

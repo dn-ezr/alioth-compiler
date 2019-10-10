@@ -57,6 +57,9 @@ struct Uri {
     operator string() const;
     explicit operator bool()const;
 
+    bool operator == ( const Uri& ) const;
+    bool operator <( const Uri& ) const;
+
     static const Uri Bad;
 };
 

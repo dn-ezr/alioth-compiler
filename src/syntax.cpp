@@ -38,9 +38,6 @@ $module node::getModule() {
 bool signature::is( type t )const {
     return t == SIGNATURE;
 }
-bool signature::isscope()const {
-    return true;
-}
 
 json signature::toJson() const {
     json obj = json::object;
@@ -135,8 +132,9 @@ $depdesc depdesc::fromJson( const json& object ) {
 bool fragment::is( type t )const {
     return t == FRAGMENT;
 }
-bool fragment::isscope()const {
-    return true;
+
+bool eprototype::is( type t )const {
+    return t == ELEPROTO;
 }
 
 bool aliasdef::is( type t )const {
@@ -146,8 +144,9 @@ bool aliasdef::is( type t )const {
 bool classdef::is( type t )const {
     return t == CLASSDEF or t == DEFINITION;
 }
-bool classdef::isscope()const {
-    return true;
+
+bool enumdef::is( type t )const {
+    return t == ENUMDEF or t == DEFINITION;
 }
 
 bool nameexpr::is( type t )const {
@@ -156,6 +155,9 @@ bool nameexpr::is( type t )const {
 
 bool typeexpr::is( type t )const {
     return t == TYPEEXPR or t == EXPRESSION;
+}
+bool typeexpr::is_type( typeid_t t )const {
+    return (id & t) != 0;
 }
 
 SyntaxContext::state::state(int _s,int _c):s(_s),c(_c) {
@@ -407,6 +409,53 @@ $depdesc SyntaxContext::constructDependencyDescriptor( $scope scope, bool diagno
                 redu(4,VN::DEPENDENCY);
             } else {
                 if( diagnostic ) diagnostics("21",VT::MODULE,*it);
+                return nullptr;
+            } break;
+        default:
+            return internal_error, nullptr;
+    }
+
+    ref->phrase = *it;
+    return ref;
+}
+
+$eprototype SyntaxContext::constructElementPrototype( $scope scope ) {
+    $eprototype ref = new eprototype;
+    ref->setScope(scope);
+
+    enter();
+    movi(1,0);
+    while( working() ) switch( states[-1] ) {
+        case 1:
+            if( it->is(CT::ELETYPE,VT::VAR) ) {
+                switch( it->id ) {
+                    case VT::VAR: ref->etype = eprototype::var; break;
+                    case VT::OBJ: ref->etype = eprototype::obj; break;
+                    case VT::PTR: ref->etype = eprototype::ptr; break;
+                    case VT::REF: ref->etype = eprototype::ref; break;
+                    case VT::REL: ref->etype = eprototype::rel; break;
+                    default: return internal_error, nullptr;
+                }
+                movi(2);
+            } else if( it->is(VN::TYPEEXPR) ) {
+                redu(1, VN::ELEPROTO);
+            } else {
+                ref->etype = eprototype::var;
+                movi(2,0);
+            } break;
+        case 2:
+            if( it->is(VN::TYPEEXPR) ) {
+                if( ref->etype == eprototype::var and it->id == UnknownType )
+                    return diagnostics("43", *it), nullptr;
+                else if( ref->etype == eprototype::obj and ref->dtype->is_type(PointerTypeMask) )
+                    return diagnostics("42", *it), nullptr;
+                else if( ref->etype == eprototype::ptr and !ref->dtype->is_type(PointerTypeMask) )
+                    return diagnostics("42", *it), nullptr;
+                else
+                    redu(1, VN::TYPEEXPR);
+            } else if( auto t = constructTypeExpression(scope, true); t ) {
+                ref->dtype = t;
+            } else {
                 return nullptr;
             } break;
         default:
@@ -727,6 +776,59 @@ $classdef SyntaxContext::constructClassDefinition( $scope scope ) {
     return ref;
 }
 
+$enumdef SyntaxContext::constructEnumerateDefinition( $scope scope ) {
+    $enumdef ref = new enumdef;
+    ref->setScope(scope);
+
+    enter();
+    movi(1,0);
+    while( working() ) switch( states[-1] ) {
+        case 1:
+            if( it->is(VT::ENUM) ) {
+                movi(2);
+            } else {
+                return diagnostics("21", VT::ENUM, *it), nullptr;
+            } break;
+        case 2:
+            if( it->is(PVT::PRIVATE,PVT::PRIVATE,PVT::PUBLIC) ) {
+                if( ref->visibility ) diagnostics("27", *it );
+                else ref->visibility = *it;
+                stay();
+            } else if( it->is(VT::L::LABEL) ) {
+                ref->name = *it;
+                movi(3);
+            } else {
+                return diagnostics("28", *it ), nullptr;
+            } break;
+        case 3:
+            if( it->is(VT::O::SC::O::S) ) {
+                movi(4);
+            } else {
+                return diagnostics("21", VT::O::SC::O::S, *it), nullptr;
+            } break;
+        case 4:
+            if( it->is(VT::L::LABEL) ) {
+                for( auto& t : ref->items ) {
+                    if( t.tx == it->tx ) {
+                        diagnostics("44", *it);
+                        diagnostics[-1]( diagnostics.prefix(), "45", *it);
+                    }
+                }
+                ref->items << *it;
+                stay();
+            } else if( it->is(VT::O::SC::C::S) ) {
+                redu(4, VN::ENUMDEF);
+            } else {
+                return diagnostics("46", *it), nullptr;
+            } break;
+        default:
+            return internal_error, nullptr;
+    }
+
+    ref->phrase = *it;
+    return ref;
+}
+
 $nameexpr SyntaxContext::constructNameExpression( $scope scope, bool absorb ) {
     $nameexpr ref = new nameexpr;
     ref->setScope(scope);
@@ -759,11 +861,11 @@ $nameexpr SyntaxContext::constructNameExpression( $scope scope, bool absorb ) {
                 return nullptr;
             } break;
         case 4:
-            if( it->is(VN::TYPEEXPR) ) {
+            if( it->is(VN::ELEPROTO) ) {
                 movi(5);
-            } else if( auto t = constructTypeExpression(scope, absorb); t ) {
+            } else if( auto t = constructElementPrototype(scope); t ) {
                 ref->targs << t;
-                if( t->id == UnknownType ) return diagnostics("31", *it ), nullptr;
+                if( t->dtype->id == UnknownType ) return diagnostics("31", *it ), nullptr;
             } else {
                 return nullptr;
             } break;
@@ -782,11 +884,11 @@ $nameexpr SyntaxContext::constructNameExpression( $scope scope, bool absorb ) {
                 return diagnostics("30", *it ), nullptr;
             } break;
         case 6:
-           if( it->is(VN::TYPEEXPR) ) {
+           if( it->is(VN::ELEPROTO) ) {
                 redu(1,VN::LIST);
-            } else if( auto t = constructTypeExpression(scope, absorb); t ) {
+            } else if( auto t = constructElementPrototype(scope); t ) {
                 ref->targs << t;
-                if( t->id == UnknownType ) return diagnostics("31", *it ), nullptr;
+                if( t->dtype->id == UnknownType ) return diagnostics("31", *it ), nullptr;
             } else {
                 return nullptr;
             } break;

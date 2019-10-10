@@ -130,7 +130,7 @@ bool token::is( CT v )const {
             );
         case CT::ELETYPE:
             return is(
-                VT::OBJ,VT::PTR,VT::REF,VT::REL,VT::VAR
+                VT::OBJ,VT::PTR,VT::REF,VT::REL
             );
         // case CT::MF_ABSTRACT: return tx == "abstract";
         // case CT::MF_REV: return tx == "rev";

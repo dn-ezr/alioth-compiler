@@ -41,7 +41,7 @@ This manual is written for users of the compiler of the Alioth programming langu
   - [3.4. Dynamic target](#34-dynamic-target)
   - [3.5. Validate target](#35-validate-target)
     - [3.5.1. Interactive mode](#351-interactive-mode)
-    - [3.5.2. Super-interactive mode](#352-super-interactive-mode)
+    - [3.5.2. Full-interactive mode](#352-full-interactive-mode)
 - [4. Managing targets](#4-managing-targets)
   - [4.1. Package managing](#41-package-managing)
     - [4.1.1. Pack](#411-pack)
@@ -334,9 +334,9 @@ like this: `{"cmd":"requestContent","url":"./src/hello.alioth"}` and if the IDE 
 
 Otherwise, if the IDE do not have the content of the resource which the compiler asked, it returns a failure package to the compiler, and then, compiler should fallback to the normal method to access this resource it needs, for example, reading from the filesystem.
 
-### 3.5.2. Super-interactive mode
+### 3.5.2. Full-interactive mode
 
-To provide in-time diagnostic service, the diagnostic process has to be triggered immediately every time the source code changed. It will be a large cost if the compiler start over the whole diagnostic progress every time. Use the `super interactive` mode to make the compiler cache the syntax trees constructed, and stand by once a diagnostic cycle ended.
+To provide in-time diagnostic service, the diagnostic process has to be triggered immediately every time the source code changed. It will be a large cost if the compiler start over the whole diagnostic progress every time. Use the `full interactive mode` to make the compiler cache the syntax trees constructed, and stand by once a diagnostic cycle ended.
 
 The option `--- 0/1` means use the standard input and output streams to communicate with IDE. The compiler will read all signatures in work space once it is started, and then stand by.
 
@@ -578,7 +578,7 @@ A directory named `Hello World` will be created, and config files such as `packa
 |option|format|instance|comment|
 |:--|:--|:--|:--|
 |`--`|`-- <I/O>`|`-- 0/1`|Open the interactive mode, specify streams to do the I/O operation|
-|`---`|`--- <I/O>`|`--- 0/1`|Open the super-interactive mode, specify streams to do the I/O operation|
+|`---`|`--- <I/O>`|`--- 0/1`|Open the full-interactive mode, specify streams to do the I/O operation|
 |`--work`|`--work <PATH>`|`--work ./demo/`|Set the path of the workspace|
 |`--root`|`--root <PATH>`|`--root /usr/lib/alioth`|Set the path of the root space|
 |`--diagnostic-format`|`--diagnostic-format <format>`|`--diagnostic-format %i`|Config the format of diagnostics informations|

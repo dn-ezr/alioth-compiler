@@ -18,15 +18,15 @@ using typemask_t = unsigned long long;
 constexpr typeid_t TypeIdBitH =                0x80'00'00'00'00'00'00'00;
 constexpr typeid_t TypeIdBitL =                0x00'00'00'00'00'00'00'01;
 
-constexpr typeid_t DeterminedTypeMask =        (TypeIdBitH >> 0x00);
-constexpr typeid_t UndeterminedTypeMask =      (TypeIdBitH >> 0x01);
-constexpr typeid_t SimpleTypeMask =            (TypeIdBitH >> 0x02) | DeterminedTypeMask;
-constexpr typeid_t PointerTypeMask =           (TypeIdBitH >> 0x03) | SimpleTypeMask;
-constexpr typeid_t BasicTypeMask =             (TypeIdBitH >> 0x04) | SimpleTypeMask;
-constexpr typeid_t IntegerTypeMask =           (TypeIdBitH >> 0x05) | BasicTypeMask;
-constexpr typeid_t FloatPointTypeMask =        (TypeIdBitH >> 0x06) | BasicTypeMask;
-constexpr typeid_t UnsignedIntegerTypeMask =   (TypeIdBitH >> 0x07) | IntegerTypeMask;
-constexpr typeid_t SignedIntegerTypeMask =     (TypeIdBitH >> 0x08) | IntegerTypeMask;
+constexpr typemask_t DeterminedTypeMask =        (TypeIdBitH >> 0x00);
+constexpr typemask_t UndeterminedTypeMask =      (TypeIdBitH >> 0x01);
+constexpr typemask_t SimpleTypeMask =            (TypeIdBitH >> 0x02) | DeterminedTypeMask;
+constexpr typemask_t PointerTypeMask =           (TypeIdBitH >> 0x03) | SimpleTypeMask;
+constexpr typemask_t BasicTypeMask =             (TypeIdBitH >> 0x04) | SimpleTypeMask;
+constexpr typemask_t IntegerTypeMask =           (TypeIdBitH >> 0x05) | BasicTypeMask;
+constexpr typemask_t FloatPointTypeMask =        (TypeIdBitH >> 0x06) | BasicTypeMask;
+constexpr typemask_t UnsignedIntegerTypeMask =   (TypeIdBitH >> 0x07) | IntegerTypeMask;
+constexpr typemask_t SignedIntegerTypeMask =     (TypeIdBitH >> 0x08) | IntegerTypeMask;
 
 constexpr typeid_t UnknownType =               (TypeIdBitL << 0x00) | UndeterminedTypeMask;
 constexpr typeid_t NamedType =                 (TypeIdBitL << 0x01) | UndeterminedTypeMask;

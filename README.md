@@ -55,7 +55,7 @@ If you just need to run this compiler to compile the alioth programming language
 All command line parameters can be separated into two set.
 The compiler of the Alioth programming language can be started by the command line. You can control the behaviors of the compiler by passing command line parameters.
 
-Here I'll show you some common usage of this compiler, for more information, please view the [Alioth Compiler Manual](doc/manual.md).
+Here I'll show you some common usage of this compiler, for more information, please view the [Alioth Compiler Manual](doc/Alioth%20Compiler%20Manual.md).
 
 The common command format to compile several modules into a target as follow:
 

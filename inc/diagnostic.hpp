@@ -24,7 +24,7 @@ class Diagnostics : public chainz<Diagnostic> {
         /**
          * @member prefix : 前缀信息
          * @desc : 在生成诊断信息时，用于填写前缀字段的预制信息 */
-        string prefix;
+        string mprefix;
 
     public:
         /**
@@ -37,18 +37,20 @@ class Diagnostics : public chainz<Diagnostic> {
          */
         template<typename ...Args>
         Diagnostics& operator () ( string code, Args&&... args ) {
-            construct(-1, prefix, code, std::forward<Args>(args)...);
+            construct(-1, mprefix, code, std::forward<Args>(args)...);
             return *this;
         }
 
         Diagnostics& operator [] ( const string& prefix ) {
-            this->prefix = prefix;
+            mprefix = prefix;
             return *this;
         }
 
         Diagnostic& operator [] ( int index ) {
             return (*(chainz*)this)[index];
         }
+
+        string prefix() {return mprefix;}
 };
 
 /**

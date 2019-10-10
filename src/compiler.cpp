@@ -228,14 +228,10 @@ int BasicCompiler::execute() {
                     case 'x': target.indicator = Target::EXECUTABLE; break;
                     case 's': target.indicator = Target::STATIC; break;
                     case 'd': target.indicator = Target::DYNAMIC; break;
-                    case 'v': 
-                        target.indicator = Target::VALIDATE;
-                        if( !configureDiagnosticDestination(target.name) ) success = false;
-                        break;
+                    case 'v': target.indicator = Target::VALIDATE; break;
                 }
                 if( success ) compiler = new AliothCompiler(*this,target);
-            }
-            break;
+            } break;
         } else if( arg == "package:" ) {
 
         } else if( arg == "install:" ) {
