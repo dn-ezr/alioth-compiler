@@ -19,6 +19,10 @@ CompilerContext::CompilerContext( SpaceEngine& _spaceEngine, Diagnostics& _diagn
 
 }
 
+SpaceEngine& CompilerContext::getSpaceEngine() {
+    return spaceEngine;
+}
+
 $signature CompilerContext::getModule( const string& name, srcdesc space, bool autogen ) {
     if( !token::islabel(name) ) return nullptr;
     map<string, $signature> *space_map = nullptr;
@@ -120,11 +124,11 @@ bool CompilerContext::deleteModule( $signature sig ) {
 bool CompilerContext::loadModules( srcdesc space ) {
     if( !space or !space.isMainSpace() ) return internal_error, false;
     diagnostics[spaceEngine.getUri(space)];
-    json cache_data;
 
     map<string,$signature> *cache_map = nullptr;
     /** 根据空间描述符清理缓冲空间 */
     clearSpace(space);
+    space.name.clear();
     switch( space.flags = SpaceEngine::PeekMain(space.flags) ) {
         case WORK: cache_map = &work; break;
         case ROOT: cache_map = &root; break;
@@ -134,16 +138,13 @@ bool CompilerContext::loadModules( srcdesc space ) {
     /** 读取缓冲文件 */
     if( !spaceEngine.reachDataSource(space) )
         return diagnostics("18", spaceEngine.getUri(space)), false;
-    srcdesc cache_desc = {
-        flags: space.flags|DOC|DOCUMENT,
-        name: "space.json",
-        package: space.package
-    };
-    do if( auto cache_stream = spaceEngine.openDocumentForRead(cache_desc); cache_stream ) {
+    do if( auto cache_stream = spaceEngine.openDocumentForRead({flags: space.flags|DOC|DOCUMENT,name: "space.json",package: space.package}); cache_stream ) {
+        /** 读取缓冲数据 */
+        json& cache_data = cache_objects[space];
         try{cache_data = json::FromJsonStream(*cache_stream);} 
         catch( exception& e ) {break;}
 
-        /** 读取缓冲数据 */
+        /** 解析缓冲数据 */
         if( !cache_data.is(json::object) ) break;
         if( auto& modules = cache_data["modules"]; modules.is(json::object) ) modules.for_each([&]( const string& name, json& module ) {
             auto sig = signature::fromJson(module,space);
@@ -155,53 +156,90 @@ bool CompilerContext::loadModules( srcdesc space ) {
         });
     } while( false );
 
-    /** 接下来检查每个源代码登记是否过期，是否缺失，并根据此信息对信息不完整的模块重新扫描 */
-    chainz<fulldesc> all_descs;
+    return syncModules(space);
+}
+
+bool CompilerContext::syncModules( srcdesc space ) {
+    if( !space or !space.isMainSpace() ) return internal_error, false;
+    diagnostics[spaceEngine.getUri(space)];
+
+    map<string,$signature> *cache_map = nullptr;
+    space.name.clear();
+    switch( space.flags = SpaceEngine::PeekMain(space.flags) ) {
+        case WORK: cache_map = &work; break;
+        case ROOT: cache_map = &root; break;
+        case APKG: cache_map = &package[space.name]; break;
+    }
+
+    chainz<fulldesc> all_existing;
     if( srcdesc desc = {flags: space.flags|SRC,package: space.package}; 
         spaceEngine.reachDataSource(desc) ) 
-            all_descs = spaceEngine.enumerateContents(desc); 
+            all_existing = spaceEngine.enumerateContents(desc); 
     if( srcdesc desc = {flags: space.flags|INC,package: space.package}; 
         spaceEngine.reachDataSource(desc) )
-            all_descs += spaceEngine.enumerateContents(desc);
+            all_existing += spaceEngine.enumerateContents(desc);
 
-    bool different = false;
     chainz<fulldesc> all_cached;
     for( auto [_,cache] : *cache_map )
         for( auto [doc,_] : cache->docs )
             all_cached << doc;
-    auto all_existing = all_descs;
+
+    bool different = false;
+    chainz<fulldesc> created;
+    chainz<fulldesc> deleted;
+    chainz<fulldesc> modified;
     for( auto& cached : all_cached ) {
         bool found = false;
         for( auto ie = all_existing.begin(); ie != all_existing.end(); ie++ ) {
-            if( cached.flags != ie->flags or cached.name != ie->name ) continue;
+            if( cached.flags != ie->flags or cached.name != ie->name ) 
+                continue;
             found = true;
-            if( cached.size != ie->size or cached.mtime != ie->mtime ) different = true;
+            if( cached.size != ie->size or cached.mtime != ie->mtime ) {
+                different = true;
+                modified << cached;
+            }
             all_existing.remover(*ie--);
             break;
         }
-        if( !found ) different = true;
-    } if( all_existing.size() != 0 ) different = true;
+        if( !found ) {
+            different = true;
+            deleted << cached;
+        }
+    } if( all_existing.size() != 0 ) {
+        different = true;
+        created = all_existing;
+    }
 
-    /** 若源码发生任何变化，重新读取所有文档的模块签名，填写签名信息之后，写入缓冲配置文件。 */
+    /** 若源码发生任何变化，将变化同步，填写签名信息之后，写入缓冲配置文件。 */
     bool success = true;
     if( different ) {
         cache_map->clear();
 
-        for( const auto& desc : all_descs ) {
+        for( const auto& desc : created + modified ) {
             auto src = isalioth(desc.name);
-            auto x = loadDocument(desc);
+            auto x = loadDocument(desc,true);
             if( src and !x ) success = false;
         }
 
+        for( const auto& desc : deleted ) {
+            unloadDocument(desc);
+        }
+
         /** 将更新过的签名信息写入space缓冲文件 */
+        json& cache_data = cache_objects[space];
         if( !cache_data.is(json::object) ) cache_data = json(json::object);
         auto& modules = cache_data["modules"] = json(json::object);
         for( auto& [name,sig] : *cache_map ) {
             modules[name] = sig->toJson();
         }
-        auto os = spaceEngine.openDocumentForWrite(cache_desc);
+        auto os = spaceEngine.openDocumentForWrite({
+            flags: space.flags|DOC|DOCUMENT,
+            name: "space.json",
+            package: space.package
+        });
         if( os ) *os << cache_data.toJsonString();
     }
+
     return success;
 }
 
@@ -246,11 +284,13 @@ fulldesc CompilerContext::loadDocument( fulldesc doc, bool forceload ) {
         if( module ) module->docs.erase(doc);
         return srcdesc::error;
     }
+    sig->context = this;
     sig->space.flags = SpaceEngine::PeekMain(doc.flags);
     sig->space.package = doc.package;
+    for( auto dep : sig->deps ) dep->doc = doc;
     if( !module ) module = getModule( sig->name, doc, true );
     module->combine(sig);
-    module->docs[doc] = nullptr;
+    module->docs[doc] = {0,nullptr,{}};
     return doc;
 }
 
@@ -258,6 +298,8 @@ bool CompilerContext::unloadDocument( srcdesc doc, bool keepmodule ) {
     auto mod = getModule(doc);
     if( !mod ) return false;
     if( !mod->docs.erase(doc) ) return false;
+    for( int i = 0; i < mod->deps.size(); i++ )
+        if( mod->deps[i]->doc == doc ) mod->deps.remove(i--);
     if( !keepmodule and mod->docs.empty() == 0 )
         deleteModule(mod);
     return true;
@@ -266,16 +308,31 @@ bool CompilerContext::unloadDocument( srcdesc doc, bool keepmodule ) {
 bool CompilerContext::registerFragment( srcdesc doc, $fragment fg ) {
     auto mod = getModule(doc);
     if( !mod or !mod->docs.count(doc) ) return false;
-    mod->docs[doc] = fg;
+    auto& reg = mod->docs[doc];
+    get<0>(reg) = 1;
+    get<1>(reg) = fg;
+    get<2>(reg).clear();
+    fg->doc = doc;
+    fg->context = this;
     return true;
 }
 
-$fragment CompilerContext::getFragment( srcdesc doc ) {
+bool CompilerContext::registerFragmentFailure( srcdesc doc, const Diagnostics& info ) {
     auto mod = getModule(doc);
-    if( !mod ) return nullptr;
+    if( !mod or !mod->docs.count(doc) ) return false;
+    auto& reg = mod->docs[doc];
+    get<0>(reg) = -1;
+    get<1>(reg) = nullptr;
+    get<2>(reg) = info;
+    return true;
+}
+
+tuple<int,$fragment,Diagnostics> CompilerContext::getFragment( srcdesc doc ) {
+    auto mod = getModule(doc);
+    if( !mod ) return {0,nullptr,{}};
     if( auto it = mod->docs.find(doc); it != mod->docs.end() ) 
         return it->second;
-    return nullptr;
+    return {0,nullptr,{}};
 }
 
 }

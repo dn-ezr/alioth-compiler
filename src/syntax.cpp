@@ -2,6 +2,7 @@
 #define __syntax_cpp__
 
 #include "syntax.hpp"
+#include "context.hpp"
 
 namespace alioth {
 
@@ -35,6 +36,13 @@ $module node::getModule() {
     return mscope?mscope->getModule():nullptr;
 }
 
+CompilerContext& node::getCompilerContext() {
+    return mscope->getCompilerContext();
+}
+
+CompilerContext& signature::getCompilerContext() {
+    return *context;
+}
 bool signature::is( type t )const {
     return t == SIGNATURE;
 }
@@ -80,7 +88,7 @@ $signature signature::fromJson( const json& object, srcdesc space ) {
             if( !d ) continue;
             d.flags |= space.flags;
             d.package = space.package;
-            sig->docs[d] = nullptr;
+            sig->docs[d] = {0,nullptr,{}};
         }
     return sig;
 }
@@ -105,6 +113,7 @@ json depdesc::toJson()const {
     dep["name"] = name.tx;
     dep["from"] = get<1>(from.extractContent());
     dep["alias"] = alias.tx;
+    dep["doc"] = doc.toJson();
     return dep;
 }
 
@@ -112,10 +121,12 @@ $depdesc depdesc::fromJson( const json& object ) {
     $depdesc desc = new depdesc;
     if( !object.is(json::object) ) return nullptr;
     
-    if( object.count("name",json::string) )
-        desc->name = (string)object["name"];
-    else
-        return nullptr;
+    if( object.count("name",json::string) ) desc->name = (string)object["name"];
+    else return nullptr;
+
+    if( object.count("doc",json::object) ) desc->doc.fromJson(object["doc"]);
+    else return nullptr;
+
     if( object.count("alias",json::string) ) {
         desc->alias = (string)object["alias"];
         if(desc->alias.tx == "this") 
@@ -129,8 +140,24 @@ $depdesc depdesc::fromJson( const json& object ) {
     return desc;
 }
 
+Uri depdesc::getDocUri() {
+    return getCompilerContext().getSpaceEngine().getUri(doc);
+}
+
 bool fragment::is( type t )const {
     return t == FRAGMENT;
+}
+
+Uri fragment::getDocUri() {
+    return getCompilerContext().getSpaceEngine().getUri(doc);
+}
+
+$fragment fragment::getFragment() {
+    return this;
+}
+
+CompilerContext& fragment::getCompilerContext() {
+    return *context;
 }
 
 bool eprototype::is( type t )const {

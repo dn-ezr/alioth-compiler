@@ -160,18 +160,6 @@ class AliothCompiler : public AbstractCompiler {
 
     private:
         /**
-         * @enum state_t : Alioth编译器状态
-         * @desc :
-         *  用于描述Alioth编译器的状态，主要用于在全交互模式下跟踪Alioth编译器的行为
-         */
-        enum state_t {
-            STREAM, // 流式工作模式，表示没有进入全交互模式
-            READY,  // 就绪，此状态下的编译器会从输入流提取指令，开始执行
-            WORKING, // 工作中，此状态下的编译器正在处理一条指令
-        };
-
-    private:
-        /**
          * @member target : 目标信息
          * @desc : 描述执行目标 */
         CompilingTarget target;
@@ -189,22 +177,12 @@ class AliothCompiler : public AbstractCompiler {
         /**
          * @member full_interactive : 是否开启全交互模式
          * @desc : 全交互模式会使得Alioth编译器进入挂机状态，根据指令行动 */
-        bool full_interactive;
+        bool full_interactive = false;
 
         /**
-         * @member full_interactive_i : 全交互模式输入流
-         * @desc : 全交互模式下，从此输入流读取指令 */
-        int full_interactive_i;
-
-        /**
-         * @member full_interactive_o : 全交互模式输出流
-         * @desc : 全交互模式下，从此输出流写入响应 */
-        int full_interactive_o;
-
-        /**
-         * @member state : 编译器状态
-         * @desc : 编译器状态用于跟踪编译器的行为 */
-        state_t state;
+         * @member msock : 交互套接字
+         * @desc : 用于交互模式的交互套接字 */
+        Socket msock;
 
     public:
         /**
@@ -219,6 +197,24 @@ class AliothCompiler : public AbstractCompiler {
         int execute() override;
     
     private:
+
+        /**
+         * @method execute_full_interactive : 执行全交互模式
+         * @desc :
+         *  进入全交互模式，等待请求，完成指定任务
+         * @return int :　结束码
+         */
+        int execute_full_interactive();
+
+        /**
+         * @method enableFullInteractiveMode: 启动全交互模式
+         * @desc :
+         *  全交互模式将空间引擎和Alioth编译器都与指定输入输出流链接
+         * @param input : 指定输入流
+         * @param output : 指定输出流
+         * @return bool : 交互模式是否启动成功
+         */
+        bool enableFullInteractiveMode( int input, int output );
 
         /**
          * @method detectInvolvedModules : 检测涉及模块

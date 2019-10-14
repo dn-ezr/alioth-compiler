@@ -39,6 +39,11 @@ class CompilerContext {
          * @member diagnostics : 诊断信息
          * @desc : 用于报告诊断信息 */
         Diagnostics& diagnostics;
+
+        /**
+         * @member cache_objects : 缓冲对象
+         * ＠desc : 对每个空间的缓冲对象 */
+        map<srcdesc,json> cache_objects;
     
     public:
 
@@ -50,6 +55,13 @@ class CompilerContext {
          * @param _diagnostics : 日志仓库
          */
         CompilerContext( SpaceEngine& _spaceEngine, Diagnostics& _diagnostics );
+
+        /**
+         * @method getSpaceEngine: 获取空间引擎
+         * @desc :
+         *  受Context管辖的语法结构有时会需要使用Context的部分功能
+         */
+        SpaceEngine& getSpaceEngine();
 
         /**
          * @method getModule : 获取模块
@@ -121,6 +133,16 @@ class CompilerContext {
         bool loadModules( srcdesc space );
 
         /**
+         * @method syncModules : 同步模块部署信息
+         * @desc :
+         *  此方法用于将缓冲的模块部署信息同步到与实际情况一致
+         *  并将最新的缓冲信息写入空间缓冲文件
+         * @param space : 空间描述符，方法会自动提取主空间信息，忽略其他信息。
+         * ＠return bool : 操作是否成功
+         */
+        bool syncModules( srcdesc space );
+
+        /**
          * @method clearSpace : 清空空间
          * @desc :
          *  清除一个空间所包含的所有模块
@@ -163,6 +185,16 @@ class CompilerContext {
          */
         bool registerFragment( srcdesc doc, $fragment fg = nullptr );
 
+        /**
+         * @method registerFragmentFailure : 登记片段失败
+         * @desc :
+         *  若构造语法树失败，应当记录失败时产生的诊断信息
+         * @param doc : 文档描述符
+         * @param info : 诊断信息
+         * @return bool : 是否绑定成功
+         */
+        bool registerFragmentFailure( srcdesc doc, const Diagnostics& info );
+
         /** 
          * @method getFragment : 获取片段
          * @desc :
@@ -170,7 +202,7 @@ class CompilerContext {
          * @param doc : 文档描述符
          * @return $fragment : 片段
          */
-        $fragment getFragment( srcdesc doc );
+        tuple<int,$fragment,Diagnostics> getFragment( srcdesc doc );
 };
 
 }

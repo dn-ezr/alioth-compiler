@@ -271,13 +271,54 @@ bool SpaceEngine::setMainSpaceMapping( int space, const string& mapping, const s
 }
 
 chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {
+    using namespace protocol;
+
+    chainz<fulldesc> descs;
     if( !desc.isSpace() ) 
         throw runtime_error("SpaceEngine::enumerateContents( const srcdesc& desc): descriptor doesn't describe a space.");
+    
+    auto modifier = [&desc](fulldesc& ret, bool dir) {
+        if( dir ) {
+            if( desc.isMainSpace() ) {
+                if( "arc" == ret.name ) ret.flags |= ARC;
+                else if( "bin" == ret.name ) ret.flags |= BIN;
+                else if( "doc" == ret.name ) ret.flags |= DOC;
+                else if( "inc" == ret.name ) ret.flags |= INC;
+                else if( "lib" == ret.name ) ret.flags |= LIB;
+                else if( "obj" == ret.name ) ret.flags |= OBJ;
+                else if( "src" == ret.name ) ret.flags |= SRC;
+                else ret.flags |= EXT;
+            } else {
+                ret.flags |= EXT;
+            }
+        } else {
+            ret.flags |= DOCUMENT;
+        }
+    };
+    
+    if( interactive ) {
+        auto seq = msock->requestContents(getUri(desc));
+        auto pack = msock->receiveRespond(seq);
+        auto respond = pack->respond();
+        if( respond->status == Status::SUCCESS ) {
+            auto params = respond->contents();
+            for( auto& [fname,item] : params->data ) {
+                if( fname == "." or fname == ".." ) continue;
+                fulldesc& ret = descs.construct(-1);
+                ret.mtime = item.mtime;
+                ret.size = item.size;
+                ret.flags = desc.flags;
+                ret.package = desc.package;
+                ret.name = fname;
+                modifier( ret, item.dir );
+            }
+            return descs;
+        }
+    }
     auto path = getPath(desc);
     DIR* dir = opendir(path.data());
     if( !dir )
         throw runtime_error("SpaceEngine::enumerateContents( const srcdesc& desc ): bad mapping for space, cannot open it.");
-    chainz<fulldesc> descs;
     
     dirent* p = nullptr;
     while( (p = readdir(dir)) != nullptr ) {
@@ -295,22 +336,7 @@ chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {
         ret.package = desc.package;
         ret.name = p->d_name;
         
-        if( S_ISDIR(stat.st_mode) ) {
-            if( desc.isMainSpace() ) {
-                if( "arc" == ret.name ) ret.flags |= ARC;
-                else if( "bin" == ret.name ) ret.flags |= BIN;
-                else if( "doc" == ret.name ) ret.flags |= DOC;
-                else if( "inc" == ret.name ) ret.flags |= INC;
-                else if( "lib" == ret.name ) ret.flags |= LIB;
-                else if( "obj" == ret.name ) ret.flags |= OBJ;
-                else if( "src" == ret.name ) ret.flags |= SRC;
-                else ret.flags |= EXT;
-            } else {
-                ret.flags |= EXT;
-            }
-        } else {
-            ret.flags |= DOCUMENT;
-        }
+        modifier( ret, S_ISDIR(stat.st_mode) );
     }
 
     return descs;
@@ -343,20 +369,17 @@ bool SpaceEngine::createSubSpace( const srcdesc& desc ) {
 }
 
 uistream SpaceEngine::openDocumentForRead( const srcdesc& desc ) {
+    using namespace protocol;
     if( !desc.isDocument() )
         throw runtime_error("SpaceEngine::openDocumentForRead( const srcdesc& desc ): descriptor doesn't describe a document.");
     auto uri = getUri(desc);
     if( interactive ) {
-        auto os = OpenStreamForWrite(interactive_o);
-        auto is = OpenStreamForRead(interactive_i);
-        json ask = json::object;
-        ask["cmd"] = string("requestContent");
-        ask["uri"] = uri;
-        *os << ask.toJsonString();
-        auto answer = json::FromJsonStream(*is);
-        if( answer.is(json::object) and answer["ret"].is(json::boolean) and (bool)answer["ret"] ) {
+        auto seq = msock->requestContent(uri);
+        auto package = msock->receiveRespond(seq);
+        if( auto ext = package->respond(); ext->status == Status::SUCCESS ) {
             auto stream = std::make_unique<stringstream>();
-            stream->str((string)answer["content"]);
+            auto param = ext->content();
+            stream->str(param->data);
             return stream;
         }
     }
@@ -474,10 +497,13 @@ Uri SpaceEngine::getUri( const srcdesc& desc ) {
     return uri;
 }
 
-void SpaceEngine::enableInteractiveMode( int input, int output ) {
-    interactive = true;
-    interactive_i = input;
-    interactive_o = output;
+bool SpaceEngine::enableInteractiveMode( int input, int output ) {
+    if( interactive ) return true;
+    if( !msock ) msock = new Socket;
+    auto a = msock->ActivateInputStream({scheme:"fd",host:to_string(input),port:0});
+    auto b = msock->ActivateOutputStream({scheme:"fd",host:to_string(output),port:0});
+    if( a and b ) interactive = true;
+    return a and b;
 }
 
 uistream SpaceEngine::OpenStreamForRead( int i ) {
@@ -491,7 +517,7 @@ uistream SpaceEngine::OpenStreamForRead( Uri uri ) {
         if( !is->good() ) return nullptr;
         return is;
     } else if( uri.scheme == "fd" ) {
-        return OpenStreamForRead(stol(uri.path));
+        return OpenStreamForRead(stol(uri.host));
     } else {
         throw runtime_error("SpaceEngine::OpenStreamForRead( Uri uri ): unsolvable scheme: " + uri.scheme );
     }
@@ -508,7 +534,7 @@ uostream SpaceEngine::OpenStreamForWrite( Uri uri ) {
         if( !os->good() ) return nullptr;
         return os;
     } else if( uri.scheme == "fd" ) {
-        return OpenStreamForWrite(stol(uri.path));
+        return OpenStreamForWrite(stol(uri.host));
     } else {
         throw runtime_error("SpaceEngine::OpenStreamForWrite( Uri uri ): unsolvable scheme: " + uri.scheme );
     }

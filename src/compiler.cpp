@@ -10,6 +10,7 @@
 #include <regex>
 
 namespace alioth {
+using namespace std;
 
 AbstractCompiler::~AbstractCompiler() {
     if( diagnostics.size() ) {
@@ -228,7 +229,12 @@ int BasicCompiler::execute() {
                     case 'x': target.indicator = Target::EXECUTABLE; break;
                     case 's': target.indicator = Target::STATIC; break;
                     case 'd': target.indicator = Target::DYNAMIC; break;
-                    case 'v': target.indicator = Target::VALIDATE; break;
+                    case 'v': 
+                        target.indicator = Target::VALIDATE; 
+                        if( !configureDiagnosticDestination(target.name) ) {
+                            diagnostics["command-line"]("12",args[i]);
+                            success = false;
+                        } break;
                 }
                 if( success ) compiler = new AliothCompiler(*this,target);
             } break;
@@ -297,18 +303,93 @@ AliothCompiler::~AliothCompiler() {
 }
 
 int AliothCompiler::execute() {
-    if( !detectInvolvedModules() ) return 1;
-    if( !performSyntaticAnalysis() ) return 2;
+
+    bool success = true;
+
+    for( int i = 0; i < target.modules.size(); i++ ) {
+        const auto arg = target.modules[i];
+        if( arg == "---" ) {
+            if( target.modules.remove(i); i >= target.modules.size() ) {
+                diagnostics["command-line"]("2",arg);
+                success = false;
+            } else {
+                auto reg = regex(R"((\d+)/(\d+))");
+                if( !regex_match( target.modules[i], reg ) ) {
+                    diagnostics["command-line"]("47",target.modules[i]);
+                    success = false;
+                } else {
+                    size_t size;
+                    auto in = stol(target.modules[i],&size);
+                    auto out = stol( string(target.modules[i].begin()+size+1,target.modules[i].end()) );
+
+                    success = enableFullInteractiveMode( in, out );
+                }
+                target.modules.remove(i--);
+            }
+        }
+    }if( !success ) return diagnostics("48"), 1;
+
+    if( full_interactive ) return execute_full_interactive();
+        
+    if( !detectInvolvedModules() ) return 2;
+    if( !performSyntaticAnalysis() ) return 3;
 
     return 0;
+}
+
+int AliothCompiler::execute_full_interactive() {
+    using namespace protocol;
+    context.loadModules({flags:WORK});
+    while( true ) {
+        diagnostics.clear();
+        auto package = msock.receiveRequest();
+        auto request = package->request();
+        switch( package->title ) {
+            case DIAGNOSTICS: {
+                auto params = request->diagnostics();
+                target.modules = params->targets;
+                bool success = true;
+                
+                context.syncModules({flags:WORK});
+                success = success and detectInvolvedModules();
+                success = success and performSyntaticAnalysis();
+                //[TODO] success = success and performSemanticAnalysis();
+                
+                auto info = diagnosticEngine->printToJson(diagnostics);
+                msock.respondDiagnostics(package->seq, info);
+            } break;
+            case WORKSPACE: {
+                auto params = request->workspace();
+
+                spaceEngine->setMainSpaceMapping(WORK,params->uri);
+                context.clearSpace({flags:MAIN});
+                context.loadModules({flags:WORK});
+
+                msock.respondSuccess(package->seq, WORKSPACE);
+            } break;
+            default: break;
+        }
+    }
+
+    return 0;
+}
+
+bool AliothCompiler::enableFullInteractiveMode( int input, int output ) {
+    if( full_interactive ) return true;
+    auto i = msock.ActivateInputStream({scheme:"fd",host:to_string(input),port:0});
+    auto o = msock.ActivateOutputStream({scheme:"fd",host:to_string(output),port:0});
+    auto s = spaceEngine->enableInteractiveMode(input,output);
+
+    if( i and o and s ) full_interactive = true;
+    return i and o and s;
 }
 
 bool AliothCompiler::detectInvolvedModules() {
     bool success = true;
     
-    if( !context.loadModules( {flags:WORK} ) ) return false;
+    if( !context.syncModules( {flags:WORK} ) ) return false;
 
-    if( target.modules.size() ==  0 ) 
+    if( target.modules.size() ==  0 )
         for( auto& sig : context.getModules({flags:WORK}) ) 
             target.modules << sig->name;
 
@@ -327,23 +408,27 @@ bool AliothCompiler::performSyntaticAnalysis() {
 
 bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
     bool success = true;
-    for( auto& [doc,frag] : sig->docs ) {
-        diagnostics[spaceEngine->getUri(doc)];
+    for( auto& [doc,_] : sig->docs ) {
+        if( get<0>(_) != 0 ) continue;
+        Diagnostics tempd;
+        tempd[spaceEngine->getUri(doc)];
 
         auto is = spaceEngine->openDocumentForRead( doc );
         if( !is ) {
-            diagnostics("15", spaceEngine->getUri(doc));
+            tempd("15", spaceEngine->getUri(doc));
             success = false;
             continue;
         }
         
         auto lc = LexicalContext( *is, false );
         auto tokens = lc.perform();
+        auto sc = SyntaxContext(tokens, tempd);
+        auto fg = sc.constructFragment();
+        if( fg ) context.registerFragment(doc,fg);
+        else context.registerFragmentFailure(doc,tempd);
+        diagnostics += tempd;
 
-        auto sc = SyntaxContext(tokens, diagnostics);
-        frag = sc.constructFragment();
-
-        if( !frag ) success = false;
+        if( !fg ) success = false;
     }
 
     return success;

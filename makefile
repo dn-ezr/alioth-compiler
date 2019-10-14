@@ -13,6 +13,15 @@ OOPT = -Iinc -std=gnu++17 -g -c -D__ALIOTH_DEBUG__
 LOPT = -lpthread
 TARGET = bin/alioth
 
+# This target is used for test purpose only !
+# copy all configuration files to root .
+# copy program to root path .
+# copy completion file to bash-completion folder .
+install: $(TARGET) ./doc/alioth
+	sudo cp doc/*.json /usr/lib/alioth/doc/
+	sudo cp $(TARGET) /usr/bin/
+	sudo cp ./doc/alioth /usr/share/bash-completion/completions/
+
 # link all object files to compiler
 $(TARGET):$(OBJ)
 	$(CC) $(OBJ) $(LOPT) -o $@
@@ -28,14 +37,5 @@ init:
 
 clean:
 	rm -rf obj/*.o bin/*
-
-# This target is used for test purpose only !
-# copy all configuration files to root .
-# copy program to root path .
-# copy completion file to bash-completion folder .
-install: $(TARGET) ./doc/alioth
-	sudo cp doc/*.json /usr/lib/alioth/doc/
-	sudo cp $(TARGET) /usr/bin/
-	sudo cp ./doc/alioth /usr/share/bash-completion/completions/
 
 .PHONY: init clean install

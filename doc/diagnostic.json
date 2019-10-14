@@ -1,5 +1,5 @@
 {
-    "format" : "%p:%l:%c:(%s -- %E) %i",
+    "format" : "%p:%l:%c:\n\t(%s -- %E) %i",
     "default-language" : "chinese",
     "languages" : {
         "chinese" : {
@@ -264,6 +264,11 @@
                     "beg" : "n",
                     "end" : "n",
                     "msg" : "全交互模式启动失败，参数'%R0'格式不正确"
+                }, "48" : {
+                    "sev" : 1,
+                    "beg" : "n",
+                    "end" : "n",
+                    "msg" : "全交互模式启动失败，内部错误"
                 }
             }, "severities" : [
                 "\u001b[1;31m错误\u001b[0m",

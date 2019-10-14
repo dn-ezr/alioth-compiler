@@ -3,19 +3,20 @@
 
 #include "agent.hpp"
 
-namespace alioth {
+namespace alioth::protocol {
+
+#define CONVERTER(type, name, member) type name(){return (type)member;}
 
 /**
  * @enum Action : 包所表达的动作，分为请求和响应 */
 enum Action {REQUEST, RESPOND};
 
 /**
- * @constexpr status : 响应状态 */
-class Status {
-    public:
-        static constexpr int SUCCESS = 0;
-        static constexpr int FAILED = 1;
-        static constexpr int TIMEOUT = 2;
+ * @enum status : 响应状态 */
+enum Status {
+    SUCCESS,
+    FAILED,
+    TIMEOUT,
 };
 
 /**
@@ -34,38 +35,114 @@ enum Title {
     CONTENT,
 
     /**
-     * @title VALIDATION: 检查
+     * @title DIAGNOSTICS: 诊断
      * @desc :
-     *  @request(ide): 请求语义检查
+     *  @request(ide): 请求语义检查和诊断信息
      *      @param targets --- [string]: 目标模块列表
      *  @respond(compiler): 返回语义检查结果
      *      @param status : 响应状态
-     *      @param diagnostics --- {uri:[string]} : 诊断信息
+     *      @param diagnostics --- [json formated diagnostics] : 诊断信息
      */
-    VALIDATION,
-
+    DIAGNOSTICS,
+    
     /**
-     * @title ENUMERATE: 枚举
+     * @title CONTENTS: 枚举
      * @desc :
      *  @request(compiler): 请求枚举内容
      *      @param uri --- string: 路径URI
      *  @respond(ide): 返回枚举内容
      *      @param status : 响应状态
-     *      @param data {filename:{size,timestamp}} : 内容描述
+     *      @param data {filename:{size,mtime,dir}} : 内容描述
      */
-    ENUMERATE,
+    CONTENTS,
+
+    /**
+     * @title WORKSPACE: 设置工作空间
+     * @desc :
+     *  @request(ide): 请求设置编译器的工作空间
+     *      @param uri --- string: 工作空间URI
+     *  @respond(compiler): 返回成功
+     *      @param status : 响应状态
+     */
+    WORKSPACE,
 };
 
-struct PackageExtension : public basic_thing {
+string TitleStr( Title title );
 
-}; using $PackageExtension = agent<PackageExtension>;
+/* ===> Parameters <=== */
 
-/**
- * @struct BasicPackage : 基础包
- * @desc :
- *  基础包结构表达了包的基础信息
- */
-struct BasicPackage : public basic_thing {
+something(Parameter);
+struct Parameter : public basic_thing {
+
+    struct Request {
+        something(Diagnostics);
+        something(Workspace);
+    };
+    struct Respond {
+        something(Content);
+        something(Contents);
+    };
+};
+
+struct Parameter::Request::Diagnostics : public Parameter {
+    chainz<string> targets;
+};
+struct Parameter::Request::Workspace : public Parameter {
+    string uri;
+};
+struct Parameter::Respond::Content : public Parameter {
+    string data;
+};
+struct Parameter::Respond::Contents : public Parameter  {
+    struct item {
+        size_t size;
+        time_t mtime;
+        bool dir;
+    };
+
+    map<string,item> data;
+};
+
+/* ===> Extensions <=== */
+
+something(Extension);
+struct Extension : public basic_thing {
+
+    something(Request);
+    something(Respond);
+};
+
+struct Extension::Request : public Extension {
+    /**
+     * @member params : 扩展
+     * @desc : 根据不同的请求继续扩展包的内容 */
+    $Parameter params;
+
+    CONVERTER(Parameter::Request::$Diagnostics, diagnostics, params)
+    CONVERTER(Parameter::Request::$Workspace, workspace, params)
+};
+
+struct Extension::Respond : public Extension {
+
+    /**
+     * @member status : 状态
+     * @desc : 响应的状态，一般影响响应的其他参数的存在性 */
+    Status status;
+
+    /**
+     * @member params : 参数
+     * @desc : 包含请求包参数的扩展 */
+    $Parameter params;
+
+    
+    CONVERTER(Parameter::Respond::$Content, content, params)
+    CONVERTER(Parameter::Respond::$Contents, contents, params)
+};
+
+/* ===> Package <=== */
+
+something(Package);using Packages = chainz<$Package>;
+struct Package : public basic_thing {
 
     /**
      * @member action : 动作 */
@@ -87,43 +164,15 @@ struct BasicPackage : public basic_thing {
     /**
      * @member title : 请求标题
      * @desc : 请求标题决定了请求包的其他参数的意义 */
-    Title title;
+    enum Title title;
 
     /**
      * @member extension : 包扩展
      * @desc : 包扩展的内容根据包的action和title的不同选取不同的扩展 */
-    $PackageExtension extension;
-};
-using $BasicPackage = agent<BasicPackage>;
-using BasicPackages = chainz<$BasicPackage>;
+    $Extension extension;
 
-struct RequestPackageExtension : public PackageExtension {
-    /**
-     * @member params : 扩展
-     * @desc : 根据不同的请求继续扩展包的内容 */
-    $PackageExtension params;
-};
-
-struct RespondPackageExtension : public PackageExtension {
-
-    /**
-     * @member status : 状态
-     * @desc : 响应的状态，一般影响响应的其他参数的存在性 */
-    int status;
-
-    /**
-     * @member paramｓ : 参数
-     * @desc : 包含请求包参数的扩展 */
-    $PackageExtension params;
-};
-
-
-struct RequestContentPackageExtension : public PackageExtension {
-    string uri;
-};
-
-struct RespondContentPackageExtension : public PackageExtension {
-    string data;
+    CONVERTER(Extension::$Request, request, extension)
+    CONVERTER(Extension::$Respond, respond, extension)
 };
 
 }

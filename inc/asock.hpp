@@ -7,7 +7,6 @@
 #include <thread>
 #include "jsonz.hpp"
 #include "chainz.hpp"
-#include "space.hpp"
 #include "aip.hpp"
 
 /**
@@ -18,6 +17,10 @@
 namespace alioth {
 
 struct Uri;
+using namespace std;
+using uistream = unique_ptr<istream>;
+using uostream = unique_ptr<ostream>;
+something(Socket);
 
 /**
  * @class Socket : 交互器
@@ -25,7 +28,7 @@ struct Uri;
  *  交互器用于封装Alioth交互细节
  *  包括对2个缓冲的管理，消息的发送和接收等
  */
-class Socket {
+class Socket : public basic_thing {
 
     private:
         /**
@@ -55,11 +58,15 @@ class Socket {
 
             /**
              * @member requests : 接收到的请求包缓冲 */
-            BasicPackages requests;
+            protocol::Packages requests;
+
+            /**
+             * @member cvreq : 用于nodify请求的条件变量 */
+            condition_variable cvreq;
 
             /**
              * @member responds : 接收到的响应包缓冲 */
-            map<long,$BasicPackage> responds;
+            map<long,protocol::$Package> responds;
 
             /**
              * @member transactions : 事务等待
@@ -132,9 +139,14 @@ class Socket {
         bool ActivateOutputStream( const Uri& uri );
 
         long requestContent( const Uri& uri );
+        long requestContents( const Uri& uri );
 
-        $BasicPackage receiveRespond( long seq );
-        $BasicPackage receiveRequest();
+        void respondDiagnostics( long seq, const json& diagnostics );
+        void respondSuccess( long seq, protocol::Title title );
+        void respondFailure( long seq, protocol::Title title );
+
+        protocol::$Package receiveRespond( long seq );
+        protocol::$Package receiveRequest();
     private:
 
         static $InputStream GetInputStream( const Uri& uri );
@@ -142,11 +154,11 @@ class Socket {
 
         static void GuardInputStream( $InputStream s );
 
-        static $BasicPackage ExtractPackage( const json& data );
-        static $BasicPackage ExtractRequestPackage( const json& data, $BasicPackage package );
-        static $BasicPackage ExtractRespondPackage( const json& data, $BasicPackage package );
-        long sendRequest( Title title, json& pack );
-        void sendRespond( long seq, json& pack );
+        static protocol::$Package ExtractPackage( const json& data );
+        static protocol::$Package ExtractRequestPackage( const json& data, protocol::$Package package );
+        static protocol::$Package ExtractRespondPackage( const json& data, protocol::$Package package );
+        long sendRequest( protocol::Title title, json& pack );
+        void sendRespond( long seq, protocol::Title title, json& pack );
         void sendPackage( json& pack );
 };
 

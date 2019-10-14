@@ -3,6 +3,7 @@
 
 #include "asock.hpp"
 #include "space.hpp"
+#include <iostream>
 
 namespace alioth {
 
@@ -19,6 +20,7 @@ in(an.in),out(an.out) {
 }
 
 bool Socket::ActivateInputStream( const Uri& uri ) {
+    using namespace protocol;
     if( in ) return false;
     in = GetInputStream( uri );
     if( !in ) return false;
@@ -27,6 +29,7 @@ bool Socket::ActivateInputStream( const Uri& uri ) {
 }
 
 bool Socket::ActivateOutputStream( const Uri& uri ) {
+    using namespace protocol;
     if( out ) return false;
     out = GetOutputStream( uri );
     if( !out ) return false;
@@ -34,15 +37,46 @@ bool Socket::ActivateOutputStream( const Uri& uri ) {
 }
 
 long Socket::requestContent( const Uri& uri ) {
+    using namespace protocol;
     json pack = json::object;
     pack["uri"] = uri;
     return sendRequest(CONTENT, pack);
 }
 
-$BasicPackage Socket::receiveRespond( long seq ) {
-    unique_lock<mutex> guard(*in);
-    auto i = in->responds.find(seq);
+long Socket::requestContents( const Uri& uri ) {
+    using namespace protocol;
+    json pack = json::object;
+    pack["uri"] = uri;
+    return sendRequest(CONTENTS, pack);
+}
 
+void Socket::respondDiagnostics( long seq, const json& diagnostics ) {
+    using namespace protocol;
+    json pack = json::object;
+    pack["diagnostics"] = diagnostics;
+    pack["status"] = (long)SUCCESS;
+    return sendRespond(seq, DIAGNOSTICS, pack);
+}
+
+void Socket::respondSuccess( long seq, protocol::Title title ) {
+    using namespace protocol;
+    json pack = json::object;
+    pack["status"] = (long)SUCCESS;
+    return sendRespond(seq, title, pack);
+}
+
+void Socket::respondFailure( long seq, protocol::Title title ) {
+    using namespace protocol;
+    json pack = json::object;
+    pack["status"] = (long)FAILED;
+    return sendRespond(seq, title, pack);
+}
+
+protocol::$Package Socket::receiveRespond( long seq ) {
+    using namespace protocol;
+    unique_lock<mutex> guard(*in);
+
+    auto i = in->responds.find(seq);
     if( i == in->responds.end() ) {
         auto it = in->transactions.find(seq);
         if( it == in->transactions.end() ) {
@@ -50,12 +84,20 @@ $BasicPackage Socket::receiveRespond( long seq ) {
             it = in->transactions.find(seq);
         }
         it->second->cv.wait(guard);
-        auto i = in->responds.find(seq);
+        i = in->responds.find(seq);
     }
 
     if( i == in->responds.end() ) throw runtime_error("Socket::receiveRespond( long seq ): Internal error occured");
     auto ret = i->second;
     return in->responds.erase(i), ret;
+}
+
+protocol::$Package Socket::receiveRequest() {
+    using namespace protocol;
+    unique_lock<mutex> guard(*in);
+    while( in->requests.size() == 0 ) in->cvreq.wait(guard);
+    auto pack = in->requests[0];
+    return in->requests.remove(0), pack;
 }
 
 Socket::$InputStream Socket::GetInputStream( const Uri& uri ) {
@@ -90,6 +132,7 @@ Socket::$OutputStream Socket::GetOutputStream( const Uri& uri ) {
 }
 
 void Socket::GuardInputStream( $InputStream s ) {
+    using namespace protocol;
     
     while( true ) try {
         auto recv = json::FromJsonStream(*s->is);
@@ -98,6 +141,7 @@ void Socket::GuardInputStream( $InputStream s ) {
             lock_guard guard(*s);
             if( pack->action == REQUEST ) {
                 s->requests << pack;
+                s->cvreq.notify_all();
             } else if( pack->action == RESPOND ) {
                 s->responds[pack->seq] = pack;
                 if( s->transactions.count(pack->seq) ) {
@@ -112,48 +156,66 @@ void Socket::GuardInputStream( $InputStream s ) {
     catch( exception& e ) {/*nothing to be done*/}
 }
 
-$BasicPackage Socket::ExtractPackage( const json& data ) {
+protocol::$Package Socket::ExtractPackage( const json& data ) {
+    using namespace protocol;
     if( !data.is(json::object) ) return nullptr;
     if( !data.count("seq", json::integer) ) return nullptr;
     if( !data.count("timestamp", json::integer) ) return nullptr;
     if( !data.count("action",json::string) ) return nullptr;
     if( !data.count("title", json::string) ) return nullptr;
 
-    $BasicPackage package = new BasicPackage;
+    $Package package = new Package;
     package->seq = (long)data["seq"];
     package->timestamp = (long)data["timestamp"];
 
-    if( auto title = (string)data["title"]; title == "content" ) {
+    if( auto title = (string)data["title"]; title == TitleStr(CONTENT) ) {
         package->title = CONTENT;
+    } else if( title == TitleStr(CONTENTS) ) {
+        package->title = CONTENTS;
+    } else if( title == TitleStr(DIAGNOSTICS) ) {
+        package->title = DIAGNOSTICS;
+    } else if( title == TitleStr(WORKSPACE) ) {
+        package->title = WORKSPACE;
     } else {
         return nullptr;
     }
 
     if( auto action = (string)data["action"]; action == "request" ) {
         package->action = REQUEST;
-        return ($BasicPackage)ExtractRequestPackage(data, package);
+        return ($Package)ExtractRequestPackage(data, package);
     } else if( action == "respond" ) {
         package->action = RESPOND;
-        return ($BasicPackage)ExtractRespondPackage(data, package);
+        return ($Package)ExtractRespondPackage(data, package);
     } else {
         return nullptr;
     }
 }
 
-$BasicPackage Socket::ExtractRequestPackage( const json& data, $BasicPackage package ) {
-    return nullptr;
-}
+protocol::$Package Socket::ExtractRequestPackage( const json& data, protocol::$Package package ) {
+    using namespace protocol;
 
-$BasicPackage Socket::ExtractRespondPackage( const json& data, $BasicPackage package ) {
-    if( !data.count("status", json::integer) ) return nullptr;
-    auto ex = (agent<RespondPackageExtension>)package->extension = new RespondPackageExtension;
-    ex->status = (long)data["status"];
-
+    package->extension = new Extension::Request;
+    auto ex = package->request();
+    
     switch( package->title ) {
-        case CONTENT: {
-            auto params = (agent<RespondContentPackageExtension>)ex->params = new RespondContentPackageExtension;
-            if( data.count("data", json::string) ) 
-                params->data = (string)data["data"];
+        case DIAGNOSTICS: {
+            ex->params = new Parameter::Request::Diagnostics;
+            auto params = ex->diagnostics();
+
+            if( !data.count("targets", json::array) ) return nullptr;
+
+            for( const auto& target : data["targets"] ) {
+                if( !target.is(json::string) ) continue;
+                params->targets << (string)target;
+            }
+        } break;
+        case WORKSPACE: {
+            ex->params = new Parameter::Request::Workspace;
+            auto params = ex->workspace();
+
+            if( !data.count("uri", json::string) ) return nullptr;
+
+            params->uri = data["uri"];
         } break;
         default: return nullptr;
     }
@@ -161,25 +223,62 @@ $BasicPackage Socket::ExtractRespondPackage( const json& data, $BasicPackage pac
     return package;
 }
 
-long Socket::sendRequest( Title title, json& pack ) {
+protocol::$Package Socket::ExtractRespondPackage( const json& data, protocol::$Package package ) {
+    using namespace protocol;
+    if( !data.count("status", json::integer) ) return nullptr;
+    
+    package->extension = new Extension::Respond;
+    auto ex = package->respond();
+    ex->status = (Status)(long)data["status"];
+
+    switch( package->title ) {
+        case CONTENT: {
+            ex->params = new Parameter::Respond::Content;
+            auto params = ex->content();
+            if( data.count("data", json::string) ) 
+                params->data = (string)data["data"];
+        } break;
+        case CONTENTS: {
+            ex->params = new Parameter::Respond::Contents;
+            auto params = ex->contents();
+            if( data.count("data", json::object) ) {
+                data["data"].for_each([&]( const string& key, const json& item ){
+                    if( !item.is(json::object) ) return true;
+                    if( !item.count("size", json::integer) ) return true;
+                    if( !item.count("mtime", json::integer) ) return true;
+                    if( !item.count("dir", json::boolean) ) return true;
+                    params->data[key] = {
+                        size:(size_t)(long)item["size"],
+                        mtime:(time_t)(long)item["mtime"],
+                        dir:(bool)item["dir"]
+                    };
+                    return true;
+                });
+            }
+        } break;
+        default: return nullptr;
+    }
+
+    return package;
+}
+
+long Socket::sendRequest( protocol::Title title, json& pack ) {
+    using namespace protocol;
     seq_lock.lock();
     long seq = (long)++global_seq;
     seq_lock.unlock();
 
     pack["seq"] = seq;
-    pack["action"] = "request";
-    switch( title ) {
-        case CONTENT: pack["title"] = "content"; break;
-        case VALIDATION: pack["title"] = "validation"; break;
-        case ENUMERATE: pack["title"] = "enumerate"; break;
-        default: throw logic_error("Socket::createRequestPackage(...): function not ready yet");
-    }
+    pack["action"] = string("request");
+    pack["title"] = TitleStr(title);
     sendPackage(pack);
     return seq;
 }
 
-void Socket::sendRespond( long seq, json& pack ) {
+void Socket::sendRespond( long seq, protocol::Title title, json& pack ) {
     pack["seq"] = seq;
+    pack["action"] = string("respond");
+    pack["title"] = TitleStr(title);
     sendPackage(pack);
     return;
 }
@@ -188,9 +287,20 @@ void Socket::sendPackage( json& pack ) {
     if( !out ) throw logic_error("Socket::requestContent(...): please initial output stream first");
     pack["timestamp"] = time(nullptr);
     out->lock();
-    *out->os << pack.toJsonString();
+    auto data = pack.toJsonString();
+    *out->os << data << endl;
     out->unlock();
     return;
+}
+
+string protocol::TitleStr( Title title ) {
+    switch( title ) {
+        case CONTENT: return "content";
+        case CONTENTS: return "contents";
+        case WORKSPACE: return "workspace";
+        case DIAGNOSTICS: return "diagnostics";
+        default: return "";
+    }
 }
 
 }

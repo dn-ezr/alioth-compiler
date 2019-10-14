@@ -8,6 +8,7 @@
 #include <ostream>
 #include "chainz.hpp"
 #include "jsonz.hpp"
+#include "asock.hpp"
 #include <memory>
 
 namespace alioth {
@@ -205,14 +206,9 @@ class SpaceEngine {
         bool interactive;
 
         /**
-         * @member interactive_i : 交互输入
-         * @desc : 描述交互模式时输入使用的文件描述符 */
-        int interactive_i;
-
-        /**
-         * @member interactive_o : 交互输出
-         * @desc : 交互模式时输出使用的文件描述符 */
-        int interactive_o;
+         * @member msock : 交互套接字
+         * @desc : 用于交互模式的交互套接字 */
+        $Socket msock;
 
     public:
 
@@ -342,7 +338,7 @@ class SpaceEngine {
          * @param input : 输入流文件描述符
          * @param output : 输出流文件描述符
          */
-        void enableInteractiveMode( int input, int output );
+        bool enableInteractiveMode( int input, int output );
 
         /**
          * @method OpenStramForRead : 打开流以读取数据
@@ -411,7 +407,7 @@ class fdistream : public istream {
 };
 
 /**
- * @class fdistream : 文件描述符输入流
+ * @class fdostream : 文件描述符输入流
  * @desc :
  *  用于从文件描述符建立输入流，并管理缓冲内存分配
  */

@@ -11,6 +11,8 @@
 
 namespace alioth {
 
+class CompilerContext;
+
 /** used to declare syntax structures */
 #define SYNTAX(x) struct x; using $##x = agent<x>
 #define SYNTAXS(x) SYNTAX(x); using x##s = chainz<$##x>
@@ -189,6 +191,12 @@ struct node : public thing {
          * @return $module : 模块
          */
         virtual $module getModule();
+
+        /**
+         * @method getCompilerContext : 获取编译器上下文
+         * @desc :
+         *  编译器上下文用于提供相关联资源的集中访问接口 */
+        virtual CompilerContext& getCompilerContext();
 };
 
 /**
@@ -217,16 +225,25 @@ struct signature : public node {
         /**
          * @member docs : 文档集
          * @desc : 此容器用于方便编译器类记录模块的源码来源不被语法分析器负责 
-         *  此容器中键和值都很重要，键用作编译器上下文管理文档的唯一句柄，值作为上下文管理片段的唯一句柄 */
-        map<fulldesc,$fragment> docs;
+         *  此容器中键和值都很重要，键用作编译器上下文管理文档的唯一句柄，值作为上下文管理片段的唯一句柄 
+         *  tuple<int,$fragment,Diagnostics>:
+         *      语法树状态 --- int: 0 unloaded, 1 loaded, -1 failed
+         *      语法树 --- $fragment 
+         *      诊断信息 --- Diagnostics */
+        map<fulldesc,tuple<int,$fragment,Diagnostics>> docs;
 
         /**
          * @member space : 空间
          * @desc : 描述模块所在的空间，此值由编译器类负责填写，用于在补全依赖关系时提取信息 */
         srcdesc space;
 
+        /**
+         * @member context : 编译器上下文
+         * @desc :　编译器上下文是直接管理模块签名的单位 */
+        CompilerContext* context = nullptr;
     public:
 
+        CompilerContext& getCompilerContext()override;
         virtual ~signature() = default;
         bool is( type )const override;
         this_is_scope
@@ -285,11 +302,17 @@ struct depdesc : public node {
          * @desc : 若别名设置为this module, 内部会使用 */
         token alias;
 
+        /**
+         * @member doc : 文档来源
+         * @desc : 描述此依赖描述符的来源文档 */
+        srcdesc doc;
+
     public:
         virtual ~depdesc() = default;
         bool is( type )const override;
         json toJson()const;
         static $depdesc fromJson( const json& object );
+        Uri getDocUri() override;
 };
 
 /**
@@ -303,8 +326,13 @@ struct fragment : public node {
 
         /**
          * @member doc : 源码文档
-         * @desc : 此值应当由编译器类负责填写,条件允许时必须填写，此值是从fragment搜索对应signature的依据 */
+         * @desc : 将片段挂载进入编译器上下文时，由上下文负责填写 */
         srcdesc doc;
+
+        /**
+         * @member context : 编译器上下文
+         * @desc : 将片段挂载进入编译器上下文时，由上下文负责填写 */
+        CompilerContext* context = nullptr;
 
         /**
          * @member defs : 定义
@@ -320,6 +348,10 @@ struct fragment : public node {
         virtual ~fragment() = default;
         bool is( type )const override;
         this_is_scope
+
+        virtual Uri getDocUri() override;
+        virtual $fragment getFragment() override;
+        virtual CompilerContext& getCompilerContext() override;
 };
 
 /**
