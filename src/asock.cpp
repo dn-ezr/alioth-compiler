@@ -72,6 +72,14 @@ void Socket::respondFailure( long seq, protocol::Title title ) {
     return sendRespond(seq, title, pack);
 }
 
+void Socket::reportException( const string& msg ) {
+    using namespace protocol;
+    json pack = json::object;
+    pack["status"] = (long)FAILED;
+    pack["msg"] = msg;
+    return sendRespond(0, EXCEPTION, pack);
+}
+
 protocol::$Package Socket::receiveRespond( long seq ) {
     using namespace protocol;
     unique_lock<mutex> guard(*in);
@@ -95,7 +103,14 @@ protocol::$Package Socket::receiveRespond( long seq ) {
 protocol::$Package Socket::receiveRequest() {
     using namespace protocol;
     unique_lock<mutex> guard(*in);
-    while( in->requests.size() == 0 ) in->cvreq.wait(guard);
+    while( in->requests.size() == 0 and in->is ) in->cvreq.wait(guard);
+    if( !in->is ) {
+        auto pack = new Package;
+        pack->action = REQUEST;
+        pack->title = EXIT;
+        return pack;
+    }
+    if( !in->requests.size() ) return nullptr;
     auto pack = in->requests[0];
     return in->requests.remove(0), pack;
 }
@@ -135,19 +150,25 @@ void Socket::GuardInputStream( $InputStream s ) {
     using namespace protocol;
     
     while( true ) try {
-        auto recv = json::FromJsonStream(*s->is);
-        auto pack = ExtractPackage(recv);
-        if( pack ) {
-            lock_guard guard(*s);
-            if( pack->action == REQUEST ) {
-                s->requests << pack;
-                s->cvreq.notify_all();
-            } else if( pack->action == RESPOND ) {
-                s->responds[pack->seq] = pack;
-                if( s->transactions.count(pack->seq) ) {
-                    auto tr = s->transactions.find(pack->seq);
-                    tr->second->cv.notify_all();
-                    s->transactions.erase(tr);
+        if( s->is->peek() == EOF ){
+            s->is = nullptr;
+            s->cvreq.notify_all();
+            break;
+        } else {
+            auto recv = json::FromJsonStream(*s->is);
+            auto pack = ExtractPackage(recv);
+            if( pack ) {
+                lock_guard guard(*s);
+                if( pack->action == REQUEST ) {
+                    s->requests << pack;
+                    s->cvreq.notify_all();
+                } else if( pack->action == RESPOND ) {
+                    s->responds[pack->seq] = pack;
+                    if( s->transactions.count(pack->seq) ) {
+                        auto tr = s->transactions.find(pack->seq);
+                        tr->second->cv.notify_all();
+                        s->transactions.erase(tr);
+                    }
                 }
             }
         }
@@ -176,6 +197,8 @@ protocol::$Package Socket::ExtractPackage( const json& data ) {
         package->title = DIAGNOSTICS;
     } else if( title == TitleStr(WORKSPACE) ) {
         package->title = WORKSPACE;
+    } else if( title == TitleStr(EXIT) ) {
+        package->title = EXIT;
     } else {
         return nullptr;
     }
@@ -216,6 +239,9 @@ protocol::$Package Socket::ExtractRequestPackage( const json& data, protocol::$P
             if( !data.count("uri", json::string) ) return nullptr;
 
             params->uri = data["uri"];
+        } break;
+        case EXIT: {
+
         } break;
         default: return nullptr;
     }
@@ -289,6 +315,7 @@ void Socket::sendPackage( json& pack ) {
     out->lock();
     auto data = pack.toJsonString();
     *out->os << data << endl;
+    // this_thread::sleep_for(std::chrono::microseconds{4});
     out->unlock();
     return;
 }
@@ -299,6 +326,8 @@ string protocol::TitleStr( Title title ) {
         case CONTENTS: return "contents";
         case WORKSPACE: return "workspace";
         case DIAGNOSTICS: return "diagnostics";
+        case EXIT: return "exit";
+        case EXCEPTION: return "exception";
         default: return "";
     }
 }

@@ -58,8 +58,11 @@ bool AbstractCompiler::configureDiagnosticDestination( const string& d ) {
     if( regex_match( d, reg ) ) {
         diagnosticDestination.fd = stol(d);
     } else try {
-        diagnosticDestination.fd = -1;
-        diagnosticDestination.uri = Uri::FromString(d);
+        auto uri = Uri::FromString(d);
+        if( uri ) {
+            diagnosticDestination.uri = uri;
+            diagnosticDestination.fd = -1;
+        }
     } catch( exception& e ) {
         diagnostics["command-line"]("12",d);
         return false;
@@ -189,7 +192,6 @@ int BasicCompiler::execute() {
                 success = false;
             } else {
                 if( !configureDiagnosticDestination(args[i]) ) {
-                    diagnostics["command-line"]("12",args[i]);
                     success = false;
                 }
                 args.remove(i--);
@@ -199,6 +201,7 @@ int BasicCompiler::execute() {
 
     /** 扫描先行目标,构造编译器 */
     AbstractCompiler* compiler = nullptr;
+    bool target_found = true;
     if( success ) for( int i = 0; i < args.size(); i++ ) {
         const auto arg = args[i];
         if( arg == "--help" ) {
@@ -229,12 +232,10 @@ int BasicCompiler::execute() {
                     case 'x': target.indicator = Target::EXECUTABLE; break;
                     case 's': target.indicator = Target::STATIC; break;
                     case 'd': target.indicator = Target::DYNAMIC; break;
-                    case 'v': 
+                    case 'v': {
                         target.indicator = Target::VALIDATE; 
-                        if( !configureDiagnosticDestination(target.name) ) {
-                            diagnostics["command-line"]("12",args[i]);
-                            success = false;
-                        } break;
+                        success = configureDiagnosticDestination(target.name) and success;
+                    } break;
                 }
                 if( success ) compiler = new AliothCompiler(*this,target);
             } break;
@@ -248,17 +249,21 @@ int BasicCompiler::execute() {
 
         } else if( arg == "publish:" ) {
 
+        } else {
+            target_found = false;
         }
     }
 
-    if( !compiler ) {
+    if( !target_found ) {
         diagnostics["command-line"]("7");
         return success?0:1;
-    } else {
+    } else if( compiler ) {
         auto r = compiler->execute();
         delete compiler;
         return r;
     }
+
+    return 0;
 }
 
 int BasicCompiler::help() {
@@ -330,7 +335,8 @@ int AliothCompiler::execute() {
     }if( !success ) return diagnostics("48"), 1;
 
     if( full_interactive ) return execute_full_interactive();
-        
+    
+    context.loadModules({flags:WORK});
     if( !detectInvolvedModules() ) return 2;
     if( !performSyntaticAnalysis() ) return 3;
 
@@ -340,7 +346,7 @@ int AliothCompiler::execute() {
 int AliothCompiler::execute_full_interactive() {
     using namespace protocol;
     context.loadModules({flags:WORK});
-    while( true ) {
+    while( true ) try {
         diagnostics.clear();
         auto package = msock.receiveRequest();
         auto request = package->request();
@@ -350,7 +356,6 @@ int AliothCompiler::execute_full_interactive() {
                 target.modules = params->targets;
                 bool success = true;
                 
-                context.syncModules({flags:WORK});
                 success = success and detectInvolvedModules();
                 success = success and performSyntaticAnalysis();
                 //[TODO] success = success and performSemanticAnalysis();
@@ -367,8 +372,13 @@ int AliothCompiler::execute_full_interactive() {
 
                 msock.respondSuccess(package->seq, WORKSPACE);
             } break;
+            case EXIT: {
+                return 0;
+            }
             default: break;
         }
+    } catch( exception& e ) {
+        msock.reportException(e.what());
     }
 
     return 0;
@@ -387,7 +397,8 @@ bool AliothCompiler::enableFullInteractiveMode( int input, int output ) {
 bool AliothCompiler::detectInvolvedModules() {
     bool success = true;
     
-    if( !context.syncModules( {flags:WORK} ) ) return false;
+    target_modules.clear();
+    success = success and context.syncModules( {flags:WORK} );
 
     if( target.modules.size() ==  0 )
         for( auto& sig : context.getModules({flags:WORK}) ) 
@@ -417,20 +428,17 @@ bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
         if( !is ) {
             tempd("15", spaceEngine->getUri(doc));
             success = false;
-            continue;
+        } else {
+            auto lc = LexicalContext( *is, false );
+            auto tokens = lc.perform();
+            auto sc = SyntaxContext(tokens, tempd);
+            auto fg = sc.constructFragment();
+            if( fg ) context.registerFragment(doc,fg);
+            else context.registerFragmentFailure(doc,tempd);
+            if( !fg ) success = false;
         }
-        
-        auto lc = LexicalContext( *is, false );
-        auto tokens = lc.perform();
-        auto sc = SyntaxContext(tokens, tempd);
-        auto fg = sc.constructFragment();
-        if( fg ) context.registerFragment(doc,fg);
-        else context.registerFragmentFailure(doc,tempd);
         diagnostics += tempd;
-
-        if( !fg ) success = false;
     }
-
     return success;
 }
 
@@ -442,23 +450,23 @@ bool AliothCompiler::confirmModuleCompleteness( const string& name ) {
         return confirmModuleCompleteness(mod);
 }
 
-bool AliothCompiler::confirmModuleCompleteness( $signature mod, chainz<$signature> padding ) {
+bool AliothCompiler::confirmModuleCompleteness( $signature mod, chainz<tuple<$signature,$depdesc>> padding, $depdesc _from ) {
 
     bool correct = true;
     auto space = spaceEngine->getUri(mod->space);
     diagnostics[space];
     /** 检查循环依赖 */
-    for( auto& sig : padding ) {
+    for( auto& [sig,_] : padding ) {
         if( sig == mod ) {
-            diagnostics("16", space, sig->name );
-            for( auto& s : padding ) {
+            diagnostics[get<1>(padding[-2])->getDocUri()]("16", space, sig->name );
+            for( auto& [s,f] : padding ) {
                 space = spaceEngine->getUri(s->space);
-                diagnostics[-1](space, "17", space, s->name );
+                diagnostics[f->getDocUri()][-1](space, "17", space, s->name, f->phrase );
                 if( s == sig ) break;
             }
             return false;
         }
-    } padding.insert( mod, 0 );
+    } padding.insert( {mod,_from}, 0 );
 
     for( auto& dep : mod->deps ) {
         bool repeat = false;
@@ -466,7 +474,7 @@ bool AliothCompiler::confirmModuleCompleteness( $signature mod, chainz<$signatur
         srcdesc sp;
         auto sig = calculateDependencySignature(dep,&sp);  //解算依赖空间
         if( !sig ) {
-            diagnostics("20", mod->name, space, dep->name, spaceEngine->getUri(sp) ); 
+            diagnostics[dep->getDocUri()]("20", mod->name, space, dep->name ); 
             correct = false; 
             continue;
         }
@@ -474,13 +482,14 @@ bool AliothCompiler::confirmModuleCompleteness( $signature mod, chainz<$signatur
         for( auto i = mod->deps.begin(); &*i != &dep; i++ ) {
             auto sigi = calculateDependencySignature(*i);
             if( sig == sigi ) {
-                diagnostics[(string)mod->name+" @ "+(string)space]( "19", dep->name, spaceEngine->getUri(sp) );
+                diagnostics[dep->getDocUri()]( "19", dep->name, spaceEngine->getUri(sp) );
+                diagnostics[-1]((*i)->getDocUri(), "45", (*i)->phrase );
                 correct = false;
                 repeat = true;
             }
         }
         /** 检查依赖完备性 */
-        if( !repeat ) correct = confirmModuleCompleteness(sig, padding) and correct;
+        if( !repeat ) correct = confirmModuleCompleteness(sig, padding,dep) and correct;
     }
 
     /** 若模块完备，加入到目标模块队列中 */

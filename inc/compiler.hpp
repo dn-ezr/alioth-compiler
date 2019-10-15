@@ -257,9 +257,10 @@ class AliothCompiler : public AbstractCompiler {
          *  检查结果正确的模块将被放入target_modoules容器中。
          * @param mod : 待检查的模块
          * @param padding : 挂起的依赖，用于检查是否存在循环依赖
+         * @param _from : 此模块来自哪个依赖
          * @return bool : 返回模块是否完备
          */
-        bool confirmModuleCompleteness( $signature mod, chainz<$signature> padding = {} );
+        bool confirmModuleCompleteness( $signature mod, chainz<tuple<$signature,$depdesc>> padding = {}, $depdesc _from = nullptr );
 
         /**
          * @method calculateDependencySpace : 解算依赖空间

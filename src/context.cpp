@@ -152,6 +152,7 @@ bool CompilerContext::loadModules( srcdesc space ) {
             auto& origin = (*cache_map)[name];
             if( !origin ) origin = sig;
             else origin->combine(sig);
+            origin->context = this;
             return true;
         });
     } while( false );
@@ -284,12 +285,12 @@ fulldesc CompilerContext::loadDocument( fulldesc doc, bool forceload ) {
         if( module ) module->docs.erase(doc);
         return srcdesc::error;
     }
-    sig->context = this;
-    sig->space.flags = SpaceEngine::PeekMain(doc.flags);
-    sig->space.package = doc.package;
     for( auto dep : sig->deps ) dep->doc = doc;
     if( !module ) module = getModule( sig->name, doc, true );
+    sig->space.flags = SpaceEngine::PeekMain(doc.flags);
+    sig->space.package = doc.package;
     module->combine(sig);
+    module->context = this;
     module->docs[doc] = {0,nullptr,{}};
     return doc;
 }

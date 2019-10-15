@@ -53,7 +53,8 @@ class Socket : public basic_thing {
         struct InputStream : public basic_thing, public std::mutex {
 
             /**
-             * @member is : 输入流 */
+             * @member is : 输入流
+             * @desc: 若输入流被关闭，is会被置空，此时接收请求的过程会自动模拟EXIT包 */
             uistream is;
 
             /**
@@ -144,6 +145,8 @@ class Socket : public basic_thing {
         void respondDiagnostics( long seq, const json& diagnostics );
         void respondSuccess( long seq, protocol::Title title );
         void respondFailure( long seq, protocol::Title title );
+
+        void reportException( const string& msg );
 
         protocol::$Package receiveRespond( long seq );
         protocol::$Package receiveRequest();

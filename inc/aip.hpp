@@ -65,6 +65,20 @@ enum Title {
      *      @param status : 响应状态
      */
     WORKSPACE,
+
+    /**
+     * @title EXIT: 退出
+     * @desc :
+     *  @request(ide): 请求编译器退出
+     */
+    EXIT,
+
+    /**
+     * @title EXCEPTION: 异常
+     * @desc :
+     *  @respond(compiler): 报告一个异常
+     */
+    EXCEPTION,
 };
 
 string TitleStr( Title title );
