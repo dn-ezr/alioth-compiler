@@ -7,7 +7,7 @@ _alioth() {
     _init_completion || return
 
     if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $( compgen -W "-- --root --work --version --init --help --diagnostic-format --diagnostic-method --diagnostic-to" -- ${cur}) )
+        COMPREPLY=( $( compgen -W "-- --gui --root --work --version --init --help --diagnostic-format --diagnostic-method --diagnostic-to" -- ${cur}) )
         return 0
     else
         _filedir

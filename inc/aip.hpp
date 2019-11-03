@@ -79,6 +79,13 @@ enum Title {
      *  @respond(compiler): 报告一个异常
      */
     EXCEPTION,
+
+    /**
+     * @title NOMORE: 再无输入
+     * @desc :
+     *  generated(compiler): 当输入流被远端关闭，接收端自动产生NOMORE包
+     */
+    NOMORE
 };
 
 string TitleStr( Title title );

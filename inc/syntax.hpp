@@ -21,8 +21,8 @@ class CompilerContext;
 SYNTAX(node);
 
 /** inherit from node */
-SYNTAXS(depdesc);
 SYNTAXS(signature);
+SYNTAXS(depdesc);
 SYNTAXS(fragment);
 SYNTAXS(definition);
 SYNTAXS(implementation);
@@ -42,27 +42,36 @@ SYNTAXS(opimpl);        //operator implementation 运算符实现
 SYNTAXS(metimpl);       //method implementation 方法实现
 
 /** inherit from statement */
-SYNTAXES(blockstmt);    //block statement 代码块
-SYNTAXES(exprstmt);     //expression statement 表达式语句
-SYNTAXES(branchstmt);   //branch statement 分支语句
-SYNTAXES(switchstmt);   //switch statement 选择语句
-SYNTAXES(assumestmt);   //assume statement 类型推断语句
-SYNTAXES(loopstmt);     //loop statement 循环语句
-SYNTAXES(fctrlstmt);    //flow control statement 流控制语句
-SYNTAXES(unwindstmt);   //unwind statement 执行流展开语句
-SYNTAXES(doretstmt);    //do return statement 返回过程挂载语句
+SYNTAXS(blockstmt);     //block statement 代码块
+SYNTAXS(element);       //element 元素语句
+SYNTAXS(fctrlstmt);     //flow control statement 流控制语句
+SYNTAXS(exprstmt);      //expression statement 表达式语句
+SYNTAXS(branchstmt);    //branch statement 分支语句
+SYNTAXS(switchstmt);    //switch statement 选择语句
+SYNTAXS(loopstmt);      //loop statement 循环语句
+SYNTAXS(assumestmt);    //assume statement 类型推断语句
+SYNTAXS(dostmt);        //do statement 展开执行流/设置返回过程
+SYNTAX(trystmt);
+SYNTAX(catchstmt);
+SYNTAX(throwstmt);
 
 /**inherit from expr */
+SYNTAXES(constant);     //constant expression 数值表达式,此类型表达式不一定能在编译期间取值
 SYNTAXES(nameexpr);     //name expression 名称表达式
 SYNTAXES(typeexpr);     //type expression 类型表达式
 SYNTAXES(monoexpr);     //mono expression 单目运算表达式
 SYNTAXES(binexpr);      //binary expression 双目运算表达式
-SYNTAXES(valexpr);      //value expression 数值表达式
-SYNTAXES(lctexpr);      //list constructing expression 列表构造表达式
-SYNTAXES(sctexpr);      //structural constructing expression 结构构造表达式
-SYNTAXES(tctexpr);      //tuple constructing expression 元祖构造表达式
 SYNTAXES(callexpr);     //call expression 调用表达式
 SYNTAXES(lambdaexpr);   //lambda expression lambda表达式
+SYNTAXES(sctorexpr);    //structural constructing expression 结构构造表达式
+SYNTAXES(lctorexpr);    //list constructing expression 列表构造表达式
+SYNTAXES(tctorexpr);    //tuple constructing expression 元祖构造表达式
+SYNTAXES(newexpr);      //new expression 在堆空间中建立对象
+SYNTAXES(delexpr);      //delete expression 删除堆空间的对象
+SYNTAXES(doexpr);       //do expression 同步执行
+SYNTAXES(tconvexpr);    //type convert expr 类型转换表达式
+SYNTAXES(aspectexpr);   //aspect expression 切面表达式
+SYNTAXES(mbrexpr);      //member expression 成员表达式
 
 /** module 并不是语法结构，而是语义结构，抽象层次比语法树节点要高一层 */
 struct module;
@@ -70,6 +79,9 @@ using $module = agent<module>;
 using modules = chainz<$module>;
 
 using $scope = node*;
+
+struct callable;
+struct callable_type;
 
 /**
  * @struct node : 节点
@@ -99,9 +111,35 @@ struct node : public thing {
             METHODIMPL,         // 方法实现
             OPERATORIMPL,       // 运算符实现
 
+            BLOCKSTMT,          // 块语句
+            ELEMENT,
+            FCTRLSTMT,
+            BRANCHSTMT,
+            SWITCHSTMT,
+            LOOPSTMT,
+            ASSUMESTMT,
+            DOSTMT,
+            TRYSTMT,
+            CATCHSTMT,
+            THROWSTMT,
+
             EXPRESSION,         // 表达式语句
+            CONSTANT,
             NAMEEXPR,           // 名称表达式
             TYPEEXPR,           // 类型表达式
+            SCTOREXPR,
+            LCTOREXPR,
+            BINEXPR,
+            MONOEXPR,
+            LAMBDAEXPR,
+            CALLEXPR,
+            TCTOREXPR,
+            NEWEXPR,
+            DELEXPR,
+            DOEXPR,
+            TCONVEXPR,
+            ASPECTEXPR,
+            MBREXPR,
         };
 
     private:
@@ -197,6 +235,99 @@ struct node : public thing {
          * @desc :
          *  编译器上下文用于提供相关联资源的集中访问接口 */
         virtual CompilerContext& getCompilerContext();
+};
+
+/**
+ * @struct callable_type : 可调用类型
+ * @desc : 可调用类型描述了源代码层面上调用一个方法所需的所有信息 */
+struct callable_type : public thing {
+
+    public:
+        /**
+         * @member ret_proto: 返回值元素原型 */
+        $eprototype ret_proto;
+
+        /**
+         * @member arg_protos: 参数的元素原型 */
+        eprototypes arg_protos;
+
+        /**
+         * @member va_arg: 可变参数 
+         * @desc: 若无效表示方法不使用可变参数；若为LABEL则使用静态可变参数；若为ETC则使用动态可变参数 */
+        token va_arg;
+
+    public:
+        operator callable() const;
+};
+
+/**
+ * @struct callable : 可调用对象
+ * @desc : 可调用对象对应于可调用类型 */
+struct callable {
+
+    public:
+        /**
+         * @member ret_proto: 返回值元素原型 */
+        $eprototype ret_proto;
+
+        /**
+         * @member arg_protos: 参数的元素原型 */
+        eprototypes arg_protos;
+
+        /**
+         * @member va_arg: 可变参数 
+         * @desc: 若无效表示方法不使用可变参数；若为LABEL则使用静态可变参数；若为ETC则使用动态可变参数 */
+        token va_arg;
+
+    public:
+        operator callable_type() const;
+};
+
+/**
+ * @struct metprototype : 方法原型
+ * @desc :
+ *  方法原型包含了方法定义，方法实现都需要的内容，这些信息足已生成底层函数类型 */
+struct metprototype : public callable {
+
+    public:
+        
+        /**
+         * @member cons : 约束
+         * @desc : 是否约束此方法的this为const ref */
+        token cons;
+
+        /**
+         * @member mode : 执行模式
+         * @desc : 执行模式包括default,atomic,async,inline */
+        token mode;
+
+        /**
+         * @member meta : 元方法
+         * @desc : 元方法没有this引用，元方法是作用于类的方法，而不是作用在类实例上的方法 */
+        token meta;
+};
+
+/**
+ * @struct opprototype : 运算符原型
+ * @desc : 运算符原型描述了产生底层运算符实现的入口所需的所有信息
+ */
+struct opprototype : public callable {
+
+    public:
+        /**
+         * @member modifier : 修饰符
+         * @desc : rev,ism,suffix,prefix,delete,default中的一个 */
+        token modifier;
+
+        /**
+         * @member cons : 约束
+         * @desc : 是否约束此运算符的this为const ref */
+        token cons;
+
+        /**
+         * @member subtitle : 副标题
+         * @desc : 某些特化运算符拥有副标题 */
+        token subtitle;
 };
 
 /**
@@ -355,11 +486,80 @@ struct fragment : public node {
 };
 
 /**
+ * @struct defiition : 定义
+ * @desc :
+ *  Alioth中所有的定义语法结构都继承自此类
+ *  类定义，枚举定义，运算符定义，方法定义，属性定义
+ */
+struct definition : virtual public node {
+
+    public:
+        /**
+         * @member name : 定义名称
+         * @desc : 所有定义都有名称，命名规则都相同 */
+        token name;
+
+        /**
+         * @member visibility : 可见性修饰
+         * @desc : 可见性修饰词，可使用public,private,protected或+,-,* */
+        token visibility;
+
+        /**
+         * @member premise : 定义前提
+         * @desc : 实现此定义必备的前提条件，内容是谓词的下标，若此容器为空，表示不需要前提条件 */
+        std::set<int> premise;
+};
+
+/**
+ * @struct implementation : 实现
+ * @desc :
+ *  实现包括方法实现和运算符实现
+ */
+struct implementation : public node {
+
+    public:
+
+        /**
+         * @member host : 宿主
+         * @desc : 实现所属的宿主类 */
+        $nameexpr host;
+
+        /**
+         * @member name : 实现名称
+         * @desc : 实现名称主要用于语法树检索 */
+        token name;
+
+        /**
+         * @member arg_names : 参数名称
+         * @desc : 参数名称的个数应当与参数列表中的参数个数相等 */
+        tokens arg_names;
+
+        /**
+         * @member body : 方法实现体
+         * @desc : 方法实现体是一个块语句 */
+        $blockstmt body;
+};
+
+/**
+ * @struct statement : 语句
+ * @desc : 所有执行块以及执行块的内容都被称为语句
+ */
+struct statement : virtual public node {
+
+    public:
+
+    /**
+     * @member name : 语句名称
+     * @desc : 语句名称即语句的标签，语法上，并不是所有的语句都拥有名称 */
+    token name;
+};
+
+/**
  * @struct eprototype : 元素原型
  * @desc :
  *  用于描述联系表达一个元素原型的语法结构
  */
-struct eprototype : public node {
+struct eprototype : virtual public node {
 
     public:
         /**
@@ -384,64 +584,16 @@ struct eprototype : public node {
          * @member dtype : 数据类型 */
         $typeexpr dtype;
 
+        /**
+         * @member cons : 元素约束
+         * @desc : 
+         *  对obj,ptr约束直接绑定的对象不可变
+         *  对ref,rel约束间接绑定的对象不可变 */
+        token cons;
+
     public:
         
         virtual ~eprototype() = default;
-        bool is( type )const override;
-};
-
-/**
- * @struct defiition : 定义
- * @desc :
- *  Alioth中所有的定义语法结构都继承自此类
- *  类定义，枚举定义，运算符定义，方法定义，属性定义
- */
-struct definition : public node {
-
-    public:
-        /**
-         * @member name : 定义名称
-         * @desc : 所有定义都有名称，命名规则都相同 */
-        token name;
-
-        /**
-         * @member visibility : 可见性修饰
-         * @desc : 可见性修饰词，可使用public,private,protected或+,-,* */
-        token visibility;
-
-        /**
-         * @member premise : 定义前提
-         * @desc : 实现此定义必备的前提条件，内容是谓词的下标，若此容器为空，表示不需要前提条件 */
-        std::set<int> premise;
-};
-
-/**
- * @struct statement : 语句
- * @desc : 所有执行块以及执行块的内容都被称为语句
- */
-struct statement : public node {
-
-};
-
-/**
- * @struct aliasdef : 别名定义
- * @desc :
- *  在定义作用域中，使用let关键字定义别名
- *  let <label> = <nameexpr>
- */
-struct aliasdef : public definition {
-    public:
-
-        /**
-         * @member target : 别名目标
-         * @desc : 别名所指向的目标数据类型，
-         * 虽然语法规定此语法规则用于给类定义制定别名，但在语义分析中，
-         * 此结构单纯起到无差别转发功能，所以任何具名语法结构都可以定制别名 */
-        $nameexpr tagret;
-
-    public:
-
-        virtual ~aliasdef() = default;
         bool is( type )const override;
 };
 
@@ -556,6 +708,28 @@ struct classdef : public definition {
 };
 
 /**
+ * @struct aliasdef : 别名定义
+ * @desc :
+ *  在定义作用域中，使用let关键字定义别名
+ *  let <label> = <nameexpr>
+ */
+struct aliasdef : public definition {
+    public:
+
+        /**
+         * @member target : 别名目标
+         * @desc : 别名所指向的目标数据类型，
+         * 虽然语法规定此语法规则用于给类定义制定别名，但在语义分析中，
+         * 此结构单纯起到无差别转发功能，所以任何具名语法结构都可以定制别名 */
+        $nameexpr tagret;
+
+    public:
+
+        virtual ~aliasdef() = default;
+        bool is( type )const override;
+};
+
+/**
  * @struct : 枚举定义
  * @desc : 枚举定义语法结构
  */
@@ -574,16 +748,171 @@ struct enumdef : public definition {
         this_is_scope
 };
 
-struct metdef : public definition {
+/**
+ * @struct attrdef : 属性定义
+ * @desc :
+ *  属性定义语法结构
+ */
+struct attrdef : public definition, public eprototype {
 
+    public:
+
+        /**
+         * @member arr : 数组
+         * @desc : 描述元素是否成为一个数组,存储顺序同书写顺序 */
+        chainz<int> arr;
+
+        /**
+         * @member meta : 元
+         * @desc : 元属性是类本身的属性，不属于类实例 */
+        token meta;
+
+    public:
+        virtual ~attrdef() = default;
+        bool is( type )const override;
 };
 
-struct opdef : public definition {
+/**
+ * @struct opdef : 运算符定义
+ * @desc : 
+ *  运算符定义包含默认运算符，删除默认运算符，和重载运算符 */
+struct opdef : public definition, public opprototype {
 
+    public:
+        /**
+         * @member defvals : 默认参数
+         * @desc : 默认参数指针的个数应当与参数个数相同 */
+        exprstmts defvals;
+
+        /**
+         * @member arg_names : 参数名称
+         * @desc : 运算符定义需要确定参数名称以便设置默认参数 */
+        tokens arg_names;
+
+    public:
+        virtual ~opdef() = default;
+        bool is( type )const override;
 };
 
-struct attrdef : public definition {
+/**
+ * @struct metdef : 方法定义
+ * @desc :
+ *  方法定义语法结构
+ */
+struct metdef : public definition, public metprototype {
 
+    public:
+
+        /**
+         * @member raw : 原始符号
+         * @desc : 若无效，使用Alioth规则产生底层符号，若为raw约定，则使用方法名产生底层符号，若为字面字符串，则使用字符串内容产生底层符号 */
+        token raw;
+
+        /**
+         * @member defvals : 默认参数
+         * @desc : 默认参数指针的个数应当与参数个数相同 */
+        exprstmts defvals;
+
+    public:
+        virtual ~metdef() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct opimpl : 运算符实现
+ * @desc : 运算符实现 */
+struct opimpl : public implementation, public opprototype {
+
+    public:
+
+        /**
+         * @member subtitle : 副标题 */
+        token subtitle;
+
+        /**
+         * @member supers: 基类构造语句 */
+        exprstmts supers;
+
+        /**
+         * @member initiate : 成员初始化列表
+         * @desc : 利用表达式的name属性表示成员名 */
+        exprstmts initiate;
+
+    public:
+        virtual ~opimpl() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct metimpl : 方法实现
+ * @desc : 方法实现 */
+struct metimpl : public implementation, public metprototype {
+
+    public:
+        virtual ~metimpl() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct blockstmt : 块语句
+ * @desc :
+ *  块语句由大括号包含，内容是语句序列 */
+struct blockstmt : public statement, public statements {
+
+    public:
+        virtual ~blockstmt() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct element : 元素语句
+ * @desc :
+ *  元素语句用于创建一个元素绑定一个即将创建的对象
+ *  元素语句使用name属性表示元素名称 */
+struct element : public statement {
+
+    public:
+
+        /**
+         * @member proto : 元素原型 */
+        $eprototype proto;
+
+        /**
+         * @member init : 初始化表达式
+         * @desc : 对元素数组来说，必须是列构造表达式 */
+        $exprstmt init;
+
+        /**
+         * @member array : 数组
+         * @desc : -1表示暂时省略了数组长度 */
+        chainz<int> array;
+
+    public:
+        virtual ~element() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct fctrlstmt : 流控制语句
+ * @desc : 
+ *  流控制语句包括break,continue,return,break! 
+ *  流控制语句使用name属性表示可能存在的目标标签 
+ */
+struct fctrlstmt : public statement {
+
+    public:
+
+        /**
+         * @member action : 控制动作 */
+        token action;
+
+        /**
+         * @member expr : 流控制语句可能携带的表达式 */
+        $exprstmt expr;
+    
+    public:
+        virtual ~fctrlstmt() = default;
+        bool is( type )const override;
 };
 
 /**
@@ -593,6 +922,254 @@ struct attrdef : public definition {
  */
 struct exprstmt : public statement {
 
+    public:
+        enum expr_t {
+            constant, // constant value
+
+            negative, // - expr
+            lnot, // not expr
+            brev, // ~ expr
+            address, // & expr
+            refer, // * expr
+            preinc, // ++expr
+            predec, // --expr
+            
+            postinc, // expr++
+            postdec, // expr--
+            index, // expr[expr]
+
+            add, // expr + expr
+            sub, // expr - expr
+            mul, // expr * expr
+            div, // expr / expr
+            mol, // expr % expr
+
+            shl, // expr << expr
+            shr, // expr >> expr
+            bxor, // expr ^ expr
+            bor, // expr | expr
+            band, // expr & expr
+
+            land, // expr and expr
+            lor, // expr or expr
+            lxor, // expr xor expr
+
+            eq, // expr == expr
+            ne, // expr != expr
+            ge, // expr >= expr
+            le, // expr <= expr
+            gt, // expr > expr
+            lt, // expr < expr
+
+            pointer, // expr->token
+            member, // expr . token
+            treat, // expr as! typeexpr
+            as, // expr as typeexpr
+            aspect, // expr # token
+
+            assign, // expr = expr
+            addass, // expr += expr
+            subass, // expr -= expr
+            mulass, // expr *= expr
+            divass, // expr /= expr
+            molass, // expr %= expr
+            shlass, // expr <<= expr
+            shrass, // expr >>= expr
+            bxorass, // expr ^= expr
+            borass, // expr |= expr
+            bandass, // expr &= expr
+
+            lambda, // $(...) ... {...}
+            sctor, // {...}
+            lctor, // [...]
+            tctor, // <...>
+            call, // expr(...=>...)
+        };
+    
+    public:
+        expr_t etype;
+
+    public:
+        virtual ~exprstmt() = default;
+};
+
+/**
+ * @struct branchstmt : 分支语句
+ * @desc : 分支语句即if-else语句 */
+struct branchstmt : public statement {
+
+    public:
+        /**
+         * @member condition : 分支条件 */
+        $exprstmt condition;
+
+        /**
+         * @member branch_true : 条件成立的分支 */
+        $statement branch_true;
+
+        /**
+         * @member branch_false : 条件不成立的分支 */
+        $statement branch_false;
+
+    public:
+        virtual ~branchstmt() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct switchstmt : 选择语句
+ * @desc : 
+ *  选择语句可以使用name属性作为标签，以便被流控制语句寻址
+ */
+struct switchstmt : public statement {
+
+    public:
+
+        /**
+         * @member argument : 测试表达式 */
+        $exprstmt argument;
+
+        /**
+         * @member branchs : 分支序列
+         * @desc : 每个分支被自动识别为语句块，每个分支的引导常量即此分支的name属性 */
+        blockstmts branchs;
+
+        /**
+         * @member defbr : 默认分支
+         * @desc : 使用default打开的分支 */
+        $blockstmt defbr;
+    
+    public:
+        virtual ~switchstmt() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct loopstmt : 循环语句
+ * @desc :
+ *  循环语句可以使用name属性作为标签，以便被流控制语句寻址
+ */
+struct loopstmt : public statement {
+
+    public:
+
+        /** @enum loop_type : 循环类型 */
+        enum loop_type {
+            infinite, // uses body
+            condition, // uses body con
+            suffixed, // uses body con
+            step, // uses body it con ctrl
+            iterate, // uses body it con
+        };
+    public:
+
+        /**
+         * @member ltype : 循环类型
+         * @desc : 决定了哪些成员有效 */
+        loop_type ltype;
+
+        /**
+         * @member con : 条件/容器 */
+        $exprstmt con;
+
+        /**
+         * @member it : 初始化语句/迭代器因子 */
+        $statement it;
+
+        /**
+         * @member ctrl : 控制表达式 */
+        $exprstmt ctrl;
+
+        /** @member body : 循环体 */
+        $statement body;
+    
+    public:
+        virtual ~loopstmt() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct assumestmt : 假设语句
+ * @desc :
+ *  assume expr was prototype statement
+ *  otherwise statement
+ */
+struct assumestmt : public statement {
+
+    public:
+
+        /**
+         * @member expr : 假设测试表达式 */
+        $exprstmt expr;
+
+        /**
+         * @member proto : 测试目标元素原型 */
+        $eprototype proto;
+
+        /**
+         * @member branch_true : 假设成立分支 */
+        $statement branch_true;
+
+        /**
+         * @member branch_false : 假设不成立分支 */
+        $statement branch_false;
+
+    public:
+        virtual ~assumestmt() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct dostmt : DO语句
+ * @desc :
+ *  do语句可用于两种格式
+ *      do statement when return;
+ *      do expression [on expression] then expression;
+ */
+struct dostmt : public statement {
+
+    public:
+
+        /**
+         * @member when : 语句目的
+         * @desc : 若有效,表示do statement when return格式 */
+        token when;
+
+        /**
+         * @member task : 任务
+         * @desc : 对when来说，是一个块语句，对then来说，必须是一个可调用的表达式 */
+        $statement task;
+
+        /**
+         * @member on : 数据集
+         * @desc : 执行流展开时所使用的数据集，必须满足迭代约定 */
+        $exprstmt on;
+
+        /**
+         * @member then : 回调任务
+         * @desc : 必须是一个参数类型正确的可执行类型 */
+        $exprstmt then;
+
+    public:
+        virtual ~dostmt() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct constant : 常量表达式
+ * @desc : 常量表达式用于表示编译期就能推断数值的内容
+ */
+struct constant : public exprstmt {
+
+    public:
+
+        /**
+         * @member value : 表达数值的记号 */
+        token value;
+
+    public:
+        virtual ~constant() = default;
+        bool is( type )const override;
 };
 
 /**
@@ -652,8 +1229,9 @@ struct typeexpr : public exprstmt {
          *  NamedType : nameexpr
          *  ThisClassType : nullptr
          *  UnsolvableType : nullptr
-         *  CompositeType : classdef
+         *  StructType : classdef
          *  EntityType : classdef
+         *  MethodTyped : mettype
          *  ConstraintedPointerType : typeexpr
          *  UnconstraintedPointerType : typeexpr
          *  NullPointerType : nullptr
@@ -677,6 +1255,254 @@ struct typeexpr : public exprstmt {
         bool is( type )const override;
         bool is_type( typeid_t )const;
 };
+
+/**
+ * @struct monoexpr : 单目运算表达式
+ * @desc : 单目运算表达式
+ */
+struct monoexpr : public exprstmt {
+
+    public:
+        $exprstmt operand;
+    
+    public:
+        virtual ~monoexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct binexpr : 双目运算表达式
+ * @desc : 双目运算表达式 */
+struct binexpr : public exprstmt {
+
+    public:
+        /**
+         * @member left : 运算符左侧的运算子 */
+        $exprstmt left;
+
+        /**
+         * @member right : 运算符右侧的运算子 */
+        $exprstmt right;
+
+    public:
+        virtual ~binexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct callexpr : 调用表达式
+ * @desc : 调用一个可调用的对象 */
+struct callexpr : public exprstmt {
+
+    public:
+
+        /**
+         * @member callee: 被调对象 */
+        $exprstmt callee;
+
+        /**
+         * @member params: 参数列表 */
+        exprstmts params;
+
+        /**
+         * @member rproro: 返回原型指示器
+         * @desc : 可选的，可以指定返回原形，以从众多同名同参数列表的方法中选择具体调用 */
+        $eprototype rproto;
+
+    public:
+        virtual ~callexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct lambdaexpr : lambda表达式
+ * @desc : lambda表达式产生动态的可调用对象 */
+struct lambdaexpr : public exprstmt, public callable {
+
+    public:
+
+        /**
+         * @member arg_names : 参数名称列表 */
+        tokens arg_names;
+
+        /**
+         * @member body : 执行体 */
+        $blockstmt body;
+
+    public:
+        virtual ~lambdaexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct sctorexpt : 结构化构造表达式
+ * @desc :
+ *  结构化构造表达式用于调用
+ */
+struct sctorexpr : public exprstmt, public exprstmts {
+
+    public:
+        /**
+         * @member type_indicator : 类型指示器
+         * @desc : 可选的可以为结构化构造表达式设置类型指示器 */
+        $nameexpr type_indicator;
+        
+    public:
+        virtual ~sctorexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct lctorexpr : 列构造表达式
+ * @desc : 列构造表达式
+ */
+struct lctorexpr : public exprstmt, public exprstmts {
+    public:
+        /**
+         * @member type_indicator : 类型指示器
+         * @desc : 可选的可以为结构化构造表达式设置类型指示器 */
+        $nameexpr type_indicator;
+
+    public:
+        virtual ~lctorexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct tctorexpr : 元祖构造表达式
+ * @desc : 构造元祖的表达式
+ */
+struct tctorexpr : public exprstmt, public exprstmts {
+
+    public:
+        virtual ~tctorexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct newexpr : new表达式
+ * @desc : 用于在堆空间中创建对象或数组 */
+struct newexpr : public exprstmt {
+
+    public:
+
+        /**
+         * @member ntype : 对象或数组的数据类型
+         * @desc : 堆空间只能用于直接管理对象或指针，所以不需要声明元素类型 */
+        $typeexpr ntype;
+
+        /**
+         * @member array : 数组长度
+         * @desc : 在堆空间创建数组，数组长度可变，所以数组长度是表达式 */
+        $exprstmt array;
+
+        /**
+         * @member init : 初始化表达式 */
+        $exprstmt init;
+
+    public:
+        virtual ~newexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct delexpr : 删除表达式
+ * @desc : 用于释放对象或数组占用的堆空间 */
+struct delexpr : public exprstmt {
+
+    public:
+
+        /**
+         * @member target : 要释放的对象 */
+        $exprstmt target;
+
+        /**
+         * @member array : 是否正在释放一个数组空间 */
+        token array;
+
+    public:
+        virtual ~delexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct doexpr : 同步表达式
+ * @desc : 同步表达式使得执行流等待任务执行完毕 */
+struct doexpr : public exprstmt {
+
+    public:
+        /**
+         * @member task : 任务
+         * @desc : 任务表达式必须是一个调用表达式 */
+        $callexpr task;
+
+    public:
+        virtual ~doexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct tconvexpr : 类型转换表达式
+ * @desc : 存在as和as!两种风格的类型转换 */
+struct tconvexpr : public exprstmt {
+
+    public:
+
+        /**
+         * @member org : 原表达式 */
+        $exprstmt org;
+
+        /**
+         * @member proto : 目标原型 */
+        $eprototype proto;
+
+    public:
+        virtual ~tconvexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct aspectexpr : 切面表达式
+ * @desc : 切面表达式可以用于访问反射属性，也可用于访问静态索引成员 */
+struct aspectexpr : public exprstmt {
+
+    public:
+
+        /**
+         * @member host : 宿主对象 */
+        $exprstmt host;
+
+        /**
+         * @member title : 切面标题 */
+        token title;
+
+    public:
+        virtual ~aspectexpr() = default;
+        bool is( type )const override;
+};
+
+/**
+ * @struct mbrexpr : 成员表达式
+ * @desc : 存在.和->两种用于访问成员的运算符 */
+struct mbrexpr : public exprstmt {
+
+    public:
+
+        /**
+         * @member host : 宿主对象
+         * @desc : 宿主对象 */
+        $exprstmt host;
+
+        /**
+         * @member nav : 导航名称
+         * @desc : 导航名称可以是多层次的名称表达式，其中的前缀用于选择成员所属的基类 */
+        $nameexpr nav;
+
+    public:
+        virtual ~mbrexpr() = default;
+        bool is( type )const override;
+};
+
 
 /**
  * @class SyntaxContext : 语法上下文
@@ -871,7 +1697,9 @@ class SyntaxContext {
         $signature constructModuleSignature( bool diagnostic );
         $depdesc constructDependencyDescriptor( $scope scope, bool diagnostic );
 
-        $eprototype constructElementPrototype( $scope );
+        /**
+         * @param not_care : 若true，则不在乎元素原型是否完全为空 */
+        $eprototype constructElementPrototype( $scope, bool not_care );
 
         $aliasdef constructAliasDefinition( $scope scope );
         $classdef constructClassDefinition( $scope scope );
@@ -884,28 +1712,39 @@ class SyntaxContext {
         $metimpl constructMethodImplementation( $scope scope );
 
         $blockstmt constructBlockStatement( $scope scope );
+        $element constructElementStatement( $scope scope );
         $exprstmt constructExpressionStatement( $scope scope );
         $branchstmt constructBranchStatement( $scope scope );
         $switchstmt constructSwitchStatement( $scope scope );
         $assumestmt constructAssumeStatement( $scope scope );
         $loopstmt constructLoopStatement( $scope scope );
         $fctrlstmt constructFlowControlStatement( $scope scope );
-        $unwindstmt constructUnwindStatement( $scope scope );
-        $doretstmt constructDoReturnStatement( $scope scope );
+        $dostmt constructDoStatement( $scope scope );
 
         // @param absorb : 是否吸收左尖括号为模板参数列表的开头符号
         $nameexpr constructNameExpression( $scope scope, bool absorb );
 
         // @param absorb : 用于表明是否已经处于可以吸收'<'的语境，此值可能由于class关键字的引导二改变
         $typeexpr constructTypeExpression( $scope scope, bool absorb );
-        $monoexpr constructMonoExpression( $scope scope );
-        $binexpr constructBinaryExpression( $scope scope );
-        $valexpr constructValueExpression( $scope scope );
-        $lctexpr constructListConstructingExpression( $scope scope );
-        $sctexpr constructStructuralConstructingExpression( $scope scope );
-        $tctexpr constructTupleConstructingExpression( $scope scope );
-        $callexpr constructCallExpression( $scope scope );
+        $constant constructConstantExpression( $scope scope );
+        $lctorexpr constructListConstructingExpression( $scope scope );
+        $sctorexpr constructStructuralConstructingExpression( $scope scope );
+        $tctorexpr constructTupleConstructingExpression( $scope scope );
         $lambdaexpr constructLambdaExpression( $scope scope );
+        $newexpr constructNewExpression( $scope scope );
+        $delexpr constructDeleteExpression( $scope scope );
+        $doexpr constructDoExpression( $scope scope );
+
+        bool constructOperatorLabel( $scope scope, token& subtitle, $eprototype& proto );
+        bool constructParameterList( $scope scope, callable& ref, tokens& names );
+        bool constructParameterList( $scope scope, callable& ref, tokens& names, exprstmts& defvals );
+
+        /** 
+         * @param block: 是否将'{'视为块语句的开端
+         * @param ele : 是否接收元素语句 */
+        $statement constructStatement( $scope scope, bool block, bool ele );
+
+        static int prio(const token& op );
 };
 
 }

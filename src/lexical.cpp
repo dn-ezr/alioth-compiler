@@ -56,7 +56,7 @@ tokens LexicalContext::perform() {
             else if( pre == ')' ) check(VT::O::SC::C::A,true);
             else if( pre == '-' ) state = 38;
             else if( pre == '+' ) state = 39;
-            else if( pre == '=' ) assign(VT::O::EQ,VT::O::ASSIGN);
+            else if( pre == '=' ) state = 60; // assign(VT::O::EQ,VT::O::ASSIGN);
             else if( pre == '[' ) check(VT::O::SC::O::L,true);
             else if( pre == ']' ) check(VT::O::SC::C::L,true);
             else if( pre == '{' ) check(VT::O::SC::O::S,true);
@@ -116,7 +116,7 @@ tokens LexicalContext::perform() {
             break;
         case 10:
             if( pre == 's' ) state = 15;
-            else if( pre == 'n' ) test(VT::AND,1);
+            else if( pre == 'n' ) test(VT::O::AND,1);
             else if( islabel(pre) ) state = 4;
             else check(VT::L::LABEL,false);
             break;
@@ -145,9 +145,9 @@ tokens LexicalContext::perform() {
             break;
         case 15:
             if( pre == 's' ) test(VT::ASSUME,2);
-            else if( pre == '!' ) check(VT::TREAT,true);
+            else if( pre == '!' ) check(VT::O::TREAT,true);
             else if( islabel(pre) ) state = 4;
-            else check(VT::AS,false);
+            else check(VT::O::AS,false);
             break;
         case 16:
             if( pre == 'e' ) state = 17;
@@ -218,14 +218,14 @@ tokens LexicalContext::perform() {
             break;
         case 27:
             if( pre == 'e' ) test(VT::NEW,1);
-            else if( pre == 'o' ) test(VT::NOT,1);
+            else if( pre == 'o' ) test(VT::O::NOT,1);
             else if( pre == 'u' ) test(VT::L::NULL,1);
             else if( islabel(pre) ) state = 4;
             else check(VT::L::LABEL,false);
             break;
         case 28:
             if( pre == 'b' ) state = 36;
-            else if( pre == 'r' ) test(VT::OR,1);
+            else if( pre == 'r' ) test(VT::O::OR,1);
             else if( pre == 't' ) test(VT::OTHERWISE,1);
             else if( pre == 'p' ) test(VT::OPERATOR,1);
             else if( islabel(pre) ) state = 4;
@@ -284,12 +284,13 @@ tokens LexicalContext::perform() {
             else check(VT::L::LABEL,false);
             break;
         case 38:
-            if( pre == '-' ) check(VT::O::DECRESS,true);
+            if( pre == '-' ) check(VT::O::DECREMENT,true);
             else if( pre == '=' ) check(VT::O::ASS::MINUS,true);
+            else if( pre == '>' ) check(VT::O::POINTER,true);
             else check(VT::O::MINUS,false);
             break;
         case 39:
-            if( pre == '+' ) check(VT::O::INCRESS,true);
+            if( pre == '+' ) check(VT::O::INCREMENT,true);
             else if( pre == '=' ) check(VT::O::ASS::PLUS,true);
             else check(VT::O::PLUS,false);
             break;
@@ -385,6 +386,11 @@ tokens LexicalContext::perform() {
             else if( islabel(pre) ) state = 4;
             else check(VT::L::LABEL,false);
             break;
+        case 60:
+            if( pre == '=' ) check(VT::O::EQ, true);
+            else if( pre == '>' ) check(VT::O::GENERATE, true);
+            else check(VT::O::ASSIGN, false);
+            break;
     }
 
     if( state < 0 ) {
@@ -452,7 +458,7 @@ void LexicalContext::check(int t,bool s ) {
             if( synst == 6 ) synst = 7;
             else state = -1;
             break;
-        case VT::AS:
+        case VT::O::AS:
             if( synst == 5 ) synst = 8;
             else if( synst == 7 ) synst = 8;
             else state = -1;

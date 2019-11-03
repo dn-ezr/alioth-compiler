@@ -18,73 +18,80 @@ namespace VT { // vocabulary-terminal
     
     DEFINE(min)
     namespace R { // reserved token
-        constexpr int ERR = 0;
-        constexpr int BEG = 1;
-        constexpr int END = -1;
+        constexpr int ERR = 0; // 无效的记号，token的默认值
+        constexpr int BEG = 1; // 源文档的起始记号
+        constexpr int END = -1; // 源文档的结束记号
     }
     namespace O { // operator
-        DEFINE(ASSIGN)
+        DEFINE(ASSIGN) // =
         namespace ASS { // assign operator
-            DEFINE(DIV)
-            DEFINE(MINUS)
-            DEFINE(MOL)
-            DEFINE(MUL)
-            DEFINE(PLUS)
-            DEFINE(SHL)
-            DEFINE(SHR)
+            DEFINE(DIV) // /=
+            DEFINE(MINUS) // -=
+            DEFINE(MOL) // %=
+            DEFINE(MUL) // *=
+            DEFINE(PLUS) // +=
+            DEFINE(SHL) // <<=
+            DEFINE(SHR) // >>=
             namespace B { // binary assign operator
-                DEFINE(AND)
-                DEFINE(OR)
-                DEFINE(XOR)
+                DEFINE(AND) // &=
+                DEFINE(OR) // |=
+                DEFINE(XOR) // ^=
             }
         }
         namespace B { // binary operator
-            DEFINE(AND)
-            DEFINE(OR)
-            DEFINE(REV)
-            DEFINE(XOR)
+            DEFINE(AND) // &
+            DEFINE(OR) // |
+            DEFINE(REV) // ~
+            DEFINE(XOR) // ^
         }
         namespace SC { // scoping operator
             namespace C { // closing scope
-                DEFINE(A)
-                DEFINE(L)
-                DEFINE(S)
+                DEFINE(A) // )
+                DEFINE(L) // ]
+                DEFINE(S) // }
             }
             namespace O { // opening scope
-                DEFINE(A)
-                DEFINE(L)
-                DEFINE(S)
+                DEFINE(A) // (
+                DEFINE(L) // [
+                DEFINE(S) // {
             }
-            DEFINE(COLON)
-            DEFINE(COMMA)
-            DEFINE(SEMI)
+            DEFINE(COLON) // :
+            DEFINE(COMMA) // ,
+            DEFINE(SEMI) // ;
         }
-        DEFINE(ASK)
-        DEFINE(AT)
-        DEFINE(CONV)
-        DEFINE(DECRESS)
-        DEFINE(DIV)
-        DEFINE(EQ)
-        DEFINE(ETC)
-        DEFINE(EXCEPTION)
-        DEFINE(FORCE)
-        DEFINE(GE)
-        DEFINE(GT)
-        DEFINE(INCRESS)
-        DEFINE(LE)
-        DEFINE(LT)
-        DEFINE(MEMBER)
-        DEFINE(MINUS)
-        DEFINE(MOL)
-        DEFINE(MUL)
-        DEFINE(NE)
-        DEFINE(PLUS)
-        DEFINE(RANGE)
-        DEFINE(SCOPE)
-        DEFINE(SHARP)
-        DEFINE(SHL)
-        DEFINE(SHR)
-        DEFINE(XOR)
+        DEFINE(AND) // and
+        DEFINE(AS) // as
+        DEFINE(ASK) // ?
+        DEFINE(AT) // @
+        DEFINE(CONV) // $
+        DEFINE(DECREMENT) // --
+        DEFINE(DIV) // /
+        DEFINE(EQ) // ==
+        DEFINE(ETC) // ...
+        DEFINE(EXCEPTION) // !!
+        DEFINE(FORCE) // !
+        DEFINE(GE) // >=
+        DEFINE(GENERATE) // =>
+        DEFINE(GT) // >
+        DEFINE(INCREMENT) // ++
+        DEFINE(LE) // <=
+        DEFINE(LT) // <
+        DEFINE(MEMBER) // .
+        DEFINE(MINUS) // -
+        DEFINE(MOL) // %
+        DEFINE(MUL) // *
+        DEFINE(NE) // !=
+        DEFINE(NOT) // not
+        DEFINE(OR) // or
+        DEFINE(PLUS) // +
+        DEFINE(POINTER) // ->
+        DEFINE(RANGE) // ..
+        DEFINE(SCOPE) // ::
+        DEFINE(SHARP) // #
+        DEFINE(SHL) // <<
+        DEFINE(SHR) // >>
+        DEFINE(TREAT) // as!
+        DEFINE(XOR) // xor
     }
     namespace U {
         DEFINE(SPACE)
@@ -109,8 +116,6 @@ namespace VT { // vocabulary-terminal
         DEFINE(THIS)
         DEFINE(TRUE)
     }
-    DEFINE(AND)
-    DEFINE(AS)
     DEFINE(ASM)
     DEFINE(ASSUME)
     DEFINE(BOOL)
@@ -138,17 +143,14 @@ namespace VT { // vocabulary-terminal
     DEFINE(METHOD)
     DEFINE(MODULE)
     DEFINE(NEW)
-    DEFINE(NOT)
     DEFINE(OBJ)
     DEFINE(OPERATOR)
-    DEFINE(OR)
     DEFINE(OTHERWISE)
     DEFINE(PTR)
     DEFINE(REF)
     DEFINE(REL)
     DEFINE(RETURN)
     DEFINE(SWITCH)
-    DEFINE(TREAT)
     DEFINE(UINT16)
     DEFINE(UINT32)
     DEFINE(UINT64)

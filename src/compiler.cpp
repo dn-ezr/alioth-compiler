@@ -201,7 +201,8 @@ int BasicCompiler::execute() {
 
     /** 扫描先行目标,构造编译器 */
     AbstractCompiler* compiler = nullptr;
-    bool target_found = true;
+    bool target_found = false;
+    string target_option;
     if( success ) for( int i = 0; i < args.size(); i++ ) {
         const auto arg = args[i];
         if( arg == "--help" ) {
@@ -219,6 +220,7 @@ int BasicCompiler::execute() {
                 return init(args[i]);
             }
         } else if( arg == ":" or arg == "x:" or arg == "s:" or arg == "d:" or arg == "v:" ) {
+            target_found = true;
             if( args.remove(i); i >= args.size() ) {
                 diagnostics["command-line"]("13",arg);
                 success = false;
@@ -240,17 +242,23 @@ int BasicCompiler::execute() {
                 if( success ) compiler = new AliothCompiler(*this,target);
             } break;
         } else if( arg == "package:" ) {
-
+            target_found = true;
+            target_option = arg;
         } else if( arg == "install:" ) {
-
+            target_found = true;
+            target_option = arg;
         } else if( arg == "update:" ) {
-
+            target_found = true;
+            target_option = arg;
         } else if( arg == "remove:" ) {
-
+            target_found = true;
+            target_option = arg;
         } else if( arg == "publish:" ) {
-
-        } else {
-            target_found = false;
+            target_found = true;
+            target_option = arg;
+        } else if( arg == "--gui" ) {
+            target_found = true;
+            target_option = arg;
         }
     }
 
@@ -261,6 +269,9 @@ int BasicCompiler::execute() {
         auto r = compiler->execute();
         delete compiler;
         return r;
+    } else {
+        diagnostics["command-line"]("tyet", target_option );
+        return 1;
     }
 
     return 0;
@@ -372,7 +383,7 @@ int AliothCompiler::execute_full_interactive() {
 
                 msock.respondSuccess(package->seq, WORKSPACE);
             } break;
-            case EXIT: {
+            case EXIT: case NOMORE: {
                 return 0;
             }
             default: break;
@@ -420,7 +431,10 @@ bool AliothCompiler::performSyntaticAnalysis() {
 bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
     bool success = true;
     for( auto& [doc,_] : sig->docs ) {
-        if( get<0>(_) != 0 ) continue;
+        if( get<0>(_) != 0 ) {
+            diagnostics += get<2>(_);
+            continue;
+        }
         Diagnostics tempd;
         tempd[spaceEngine->getUri(doc)];
 

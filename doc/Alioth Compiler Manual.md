@@ -8,7 +8,7 @@ date: 2019/07/17
 
 This manual is written for users of the compiler of the Alioth programming language. The corresponding compiler version is `V0.3`. This manual states all functions provided by the compiler and how to use them. This document is written in UTF8 encoding, formatted in markdown format.
 
-> Note:  
+> Note:
 > &nbsp;&nbsp;&nbsp;&nbsp;The old version of this compiler was named "**aliothc**", the last letter 'c' means "**compiler**". But compiling is no more the only function of this program for now, so the program is renamed as "**alioth**", please type the correct command according the version of compiler you're using.
 
 - [1. About this manual](#1-about-this-manual)
@@ -29,7 +29,7 @@ This manual is written for users of the compiler of the Alioth programming langu
     - [2.3.1. Sections](#231-sections)
     - [2.3.2. main section](#232-main-section)
     - [2.3.3. dev section](#233-dev-section)
-    - [2.3.4. other section](#234-other-section)
+    - [2.3.4. doc section](#234-doc-section)
     - [2.3.5. Locating](#235-locating)
   - [2.4. Repository](#24-repository)
     - [2.4.1. Static repository](#241-static-repository)
@@ -59,8 +59,10 @@ This manual is written for users of the compiler of the Alioth programming langu
   - [Options](#options)
 - [Appendix B: Configurations and config files](#appendix-b-configurations-and-config-files)
   - [Diagnostic](#diagnostic)
-  - [Package](#package)
   - [Packages](#packages)
+    - [Rules about package name](#rules-about-package-name)
+    - [Packages.package](#packagespackage)
+  - [Package](#package)
   - [Provide](#provide)
   - [Repository](#repository)
   - [Space](#space)
@@ -117,7 +119,7 @@ The abstract location where compiler will look for compiling resources in. Gener
 Main spaces have no parent space, they are used to contain sub spaces or files.
 
 - root
-  
+
   The root space is used to contain configuration files and standard libraries for the alioth programming language; There is only one root space each time the compiler runs.
 - work
 
@@ -160,7 +162,7 @@ Spaces listed above are the standard abstract spaces, there maybe other spaces e
 
 Package is the biggest unit when to install, remove or refer. You can modify the config file to decide the resources you want to share.
 
-When installing a package using the compiler of the Alioth programming language, you can choose which section you want, then compiler will download and install those resources involved by the sections you have chosen.
+When installing a package using the compiler of the Alioth programming language, you can choose which section you want, then compiler will download and install those resources involved by the sections you have chosen. In most situations the compiler automatically choose sections to download and install according to the perpose.
 
 Compiler will ensure every packages released has at least two main sections, which are the section "main" and the section "dev".
 
@@ -168,36 +170,43 @@ Compiler will ensure every packages released has at least two main sections, whi
 
 Every sections has a attribute set describes dependencies of this section and other information about this section.
 
+There are four available sections defined which are section `dev`, `main`, `doc` and section `src`.
+
 ### 2.3.2. main section
 
 No matter the package is a library or an application, main section should always provide the final product.
 
 The major difference is whether have you to build an environment to develop the package. The answer is no, if you're installing the "main" section.
 
+When packing, only resources in those three subdirs are accepted, which are subdir `BIN`,`ARC` and `LIB` . Compiler will generate `providing table` to describe what modules are provided by this section, and which target file contains it. There must be up to only one target file become the provider of certain module.
+
+Resorces in extra space are accepted too.
+
 ### 2.3.3. dev section
 
-The "dev" section always carries source code of this package, which is used to develop this package. This kind of section could be used when cooperating with others to develop this package or you have to modify something in this package.
+The "dev" section always carries source code of this package, only source code in the subdir `INC` are accepted. This section is installed when this package is the developing dependency of a developing package.
 
-### 2.3.4. other section
+### 2.3.4. doc section
 
-You can design a section to host document resources or something else. The most difference between all sections is the list of resources to be shared.
+The doc section contains resources located in subdir `DOC` only, and no alioth configuration file can be accepted.
 
 ### 2.3.5. Locating
 
 There are two situation where you have to express the location of a package, one of them is when you're installing or removing a package within the command line, another situation is that when you're coding the dependency descriptor.
 
-Once a package is installed locally, just a package name is enough to locate a package.
+A package name is a string without special punctuations like `.` or `-` . A string consists of all informations needed is called package id, which is formated as follow:
 
-Packages in remote repositories or file system can be referred by uri; Unless you forbid it, compiler will install those packages automatically.
-
-Generally the package name can be any non-empty string, but colon can not be one character of this string, because it is used to indicate the version of the package when locating packages.
-
-Example:
-
-~~~alioth
-module Hello :
-  network @ 'stdlib-linux-x86_64:1.1.47' as this module
 ~~~
+publisher.name-platform-arch:version
+~~~
+
+For example:
+
+~~~
+org.alioth.stdlib-linux-x64:3.0.1
+~~~
+
+Only field `publisher` and field `name` are necessary every time, other field will be filled according to configurations automatically.
 
 Any dependency indicates the **main** section of the package.
 
@@ -367,7 +376,7 @@ A package file named in format `<PACKAGE>.<SECTION>.apkg` will be generated and 
 You can edit the config file named `packages.json` in the doc sub space to specify some options for generating packages. Generating will abort if there is no corresponding section in the config file.
 
 ~~~json
-{ 
+{
   /** file packages.json defines attributes of all packages
       each package is a sub object of the root object of this file.
       The object name is the package name.*/
@@ -557,34 +566,34 @@ A directory named `Hello World` will be created, and config files such as `packa
 
 ## Target indicators
 
-|option|format|instance|comment|
-|:--|:--|:--|---|
-|`:`|`: <TARGET-NAME>`|`: Hello`|Auto target indicator|
-|`x:`|`x: <TARGET-NAME>`|`x: Hello`|Executable target indicator|
-|`s:`|`s: <TARGET-NAME>`|`s: Hello`|Static link library target indicator|
-|`d:`|`d: <TARGET-NAME>`|`d: Hello`|Dynamic link library target indicator|
-|`v:`|`v: <TARGET-NAME>`|`v: Validate`|Validate target indicator|
-|`package:`|`package: <PACKAGE-NAME> <SECTIONS>`|`package: OpenGL main`|Package target indicator|
-|`install:`|`install: <PACKAGE> - <SECTIONS>`|`install: pack.apkg - main doc`|Section install target indicator|
-|`update:`|`update: <PACKAGE> [- <VERSION>]`|`update: stdlib - 3.7.^`|Package update target indicator|
-|`remove:`|`remove: <PACKAGE> [- <SECTION>]`|`remove: stdlib-linux-x86_64 - main dev doc`|Remove sections from packages installed|
-|`publish:`|`publish: <PACKAGE-NAME> <SECTIONS> - <REPOSITORY>`|`publish: stdlib-linux-x86_64 main alioth://localhost/Alioth`|Publish package to remote repository|
-|`--help`|`--help`|`--help`|Print the help page and exit|
-|`--version`|`--version`|`--version`|Print the version information and exit|
-|`--init`|`--init <PACKAGE>`|`--init HelloWorld`|Initialize a project structure for package `HelloWorld`|
+| option      | format                                              | instance                                                      | comment                                                 |
+| :---------- | :-------------------------------------------------- | :------------------------------------------------------------ | ------------------------------------------------------- |
+| `:`         | `: <TARGET-NAME>`                                   | `: Hello`                                                     | Auto target indicator                                   |
+| `x:`        | `x: <TARGET-NAME>`                                  | `x: Hello`                                                    | Executable target indicator                             |
+| `s:`        | `s: <TARGET-NAME>`                                  | `s: Hello`                                                    | Static link library target indicator                    |
+| `d:`        | `d: <TARGET-NAME>`                                  | `d: Hello`                                                    | Dynamic link library target indicator                   |
+| `v:`        | `v: <TARGET-NAME>`                                  | `v: Validate`                                                 | Validate target indicator                               |
+| `package:`  | `package: <PACKAGE-NAME> <SECTIONS>`                | `package: OpenGL main`                                        | Package target indicator                                |
+| `install:`  | `install: <PACKAGE> - <SECTIONS>`                   | `install: pack.apkg - main doc`                               | Section install target indicator                        |
+| `update:`   | `update: <PACKAGE> [- <VERSION>]`                   | `update: stdlib - 3.7.^`                                      | Package update target indicator                         |
+| `remove:`   | `remove: <PACKAGE> [- <SECTION>]`                   | `remove: stdlib-linux-x86_64 - main dev doc`                  | Remove sections from packages installed                 |
+| `publish:`  | `publish: <PACKAGE-NAME> <SECTIONS> - <REPOSITORY>` | `publish: stdlib-linux-x86_64 main alioth://localhost/Alioth` | Publish package to remote repository                    |
+| `--help`    | `--help`                                            | `--help`                                                      | Print the help page and exit                            |
+| `--version` | `--version`                                         | `--version`                                                   | Print the version information and exit                  |
+| `--init`    | `--init <PACKAGE>`                                  | `--init HelloWorld`                                           | Initialize a project structure for package `HelloWorld` |
 
 ## Options
 
-|option|format|instance|comment|
-|:--|:--|:--|:--|
-|`--`|`-- <I/O>`|`-- 0/1`|Open the interactive mode, specify streams to do the I/O operation|
-|`---`|`--- <I/O>`|`--- 0/1`|Open the full-interactive mode, specify streams to do the I/O operation|
-|`--work`|`--work <PATH>`|`--work ./demo/`|Set the path of the workspace|
-|`--root`|`--root <PATH>`|`--root /usr/lib/alioth`|Set the path of the root space|
-|`--diagnostic-format`|`--diagnostic-format <format>`|`--diagnostic-format %i`|Config the format of diagnostics informations|
-|`--diagnostic-lang`|`--diagnostic-lang <language>`|`--diagnostic-lang chinese`|Choose the language the diagnostics informations are written|
-|`--diagnostic-method`|`--diagnostic-method <method>`|`--diagnostic-method json`|Choose the method to display the diagnostics informations|
-|`--diagnostic-to`|`--diagnostic-to <destination>`|`--diagnostic-to 4`|Choose the destination where to print diagnostics informations to|
+| option                | format                          | instance                    | comment                                                                 |
+| :-------------------- | :------------------------------ | :-------------------------- | :---------------------------------------------------------------------- |
+| `--`                  | `-- <I/O>`                      | `-- 0/1`                    | Open the interactive mode, specify streams to do the I/O operation      |
+| `---`                 | `--- <I/O>`                     | `--- 0/1`                   | Open the full-interactive mode, specify streams to do the I/O operation |
+| `--work`              | `--work <PATH>`                 | `--work ./demo/`            | Set the path of the workspace                                           |
+| `--root`              | `--root <PATH>`                 | `--root /usr/lib/alioth`    | Set the path of the root space                                          |
+| `--diagnostic-format` | `--diagnostic-format <format>`  | `--diagnostic-format %i`    | Config the format of diagnostics informations                           |
+| `--diagnostic-lang`   | `--diagnostic-lang <language>`  | `--diagnostic-lang chinese` | Choose the language the diagnostics informations are written            |
+| `--diagnostic-method` | `--diagnostic-method <method>`  | `--diagnostic-method json`  | Choose the method to display the diagnostics informations               |
+| `--diagnostic-to`     | `--diagnostic-to <destination>` | `--diagnostic-to 4`         | Choose the destination where to print diagnostics informations to       |
 
 # Appendix B: Configurations and config files
 
@@ -621,20 +630,20 @@ It is simply a string describes how do you want the compiler to organize the inf
 
 Tokens starting with '%' are place-holders, stand for variables, here is a table of usable variables:
 
-|token|variable|
-|---|---|
-|`%c`|column number|
-|`%C`|column number at the end of the code involved|
-|`%d`|date formated as `YYYY/MM/DD`|
-|`%E`|error code|
-|`%i`|diagnostics informaton|
-|`%l`|line number|
-|`%L`|line number at the end of the code involved|
-|`%p`|prefix information, generally, it is a path.|
-|`%s`|severity in string|
-|`%S`|severity in number|
-|`%t`|time formated as `hh:mm:ss`|
-|`%T`|timestamp in number|
+| token | variable                                      |
+| ----- | --------------------------------------------- |
+| `%c`  | column number                                 |
+| `%C`  | column number at the end of the code involved |
+| `%d`  | date formated as `YYYY/MM/DD`                 |
+| `%E`  | error code                                    |
+| `%i`  | diagnostics informaton                        |
+| `%l`  | line number                                   |
+| `%L`  | line number at the end of the code involved   |
+| `%p`  | prefix information, generally, it is a path.  |
+| `%s`  | severity in string                            |
+| `%S`  | severity in number                            |
+| `%t`  | time formated as `hh:mm:ss`                   |
+| `%T`  | timestamp in number                           |
 
 The second major section is the section named 'languages', which is a object, every key is a name of one language, and every corresponding object is a set of format descriptor, each of these descriptors describes format of a corresponding diagnostic information of certain error code.
 
@@ -651,31 +660,88 @@ The key of one descriptor is the error code written in string.
 
 All attributes inside this descriptor are necessary, descriptions as follow:
 
-|attribute|value|meaning|comment|
-|---|---|---|---|
-|`sev`|`<INT>: 1 ~ 4`|severity|1:Error<br/>2:Warning<br/>3:Information<br/>4:Hint|
-|`beg`|`n`<br/>`b<INT>`<br/>`e<INT>`|The beginning position of source code involved by this diagnostic information|`n` means there's no beginning position<br/>As for other two format, they use a boundary of one token as the position. The starting letter specifies whether the beginning or the ending of the token will be used. The number right following the letter is the index of the token.|
-|`end`|`n`<br/>`b<INT>`<br/>`e<INT>`|The ending position of source code involved by this diagnostic information|This attribute takes the same method to express the position as the attribute `beg`.|
-|`msg`|`<string>`|This string is a string with place-holders in it, tells the compiler how to organize the involved tokens to a human readable information.|This syntax will be talked about soon enough after this table.|
+| attribute | value                         | meaning                                                                                                                                   | comment                                                                                                                                                                                                                                                                              |
+| --------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sev`     | `<INT>: 1 ~ 4`                | severity                                                                                                                                  | 1:Error<br/>2:Warning<br/>3:Information<br/>4:Hint                                                                                                                                                                                                                                   |
+| `beg`     | `n`<br/>`b<INT>`<br/>`e<INT>` | The beginning position of source code involved by this diagnostic information                                                             | `n` means there's no beginning position<br/>As for other two format, they use a boundary of one token as the position. The starting letter specifies whether the beginning or the ending of the token will be used. The number right following the letter is the index of the token. |
+| `end`     | `n`<br/>`b<INT>`<br/>`e<INT>` | The ending position of source code involved by this diagnostic information                                                                | This attribute takes the same method to express the position as the attribute `beg`.                                                                                                                                                                                                 |
+| `msg`     | `<string>`                    | This string is a string with place-holders in it, tells the compiler how to organize the involved tokens to a human readable information. | This syntax will be talked about soon enough after this table.                                                                                                                                                                                                                       |
 
 The attribute `msg` is a formatted string, describes hwo the way to organize `tokens` involved to this diagnostics information. Compiler will grab certain number of tokens according to the error code, and you can refer to them using a index, for example `%2` means the third token involved, `%1` means the second, and so on; You may add a color hint to specify the color of one token when is will be printed, for example `%R0` means print the first token involved, in a red color if possible.
 
 Here's a table of color hint available in the formatted string.
 
-|hint|color|
-|---|---|
-|`r`|red|
-|`R`|red & **blob**|
-|`g`|green|
-|`G`|green & **blob**|
-|`b`|blue|
-|`B`|blue & **blob**|
-|`y`|yellow|
-|`Y`|yellow & **blob**|
-|`p`|purple|
-|`P`|purple & **blob**|
-|`c`|cyan|
-|`C`|cyan & **blob**|
+| hint | color             |
+| ---- | ----------------- |
+| `r`  | red               |
+| `R`  | red & **blob**    |
+| `g`  | green             |
+| `G`  | green & **blob**  |
+| `b`  | blue              |
+| `B`  | blue & **blob**   |
+| `y`  | yellow            |
+| `Y`  | yellow & **blob** |
+| `p`  | purple            |
+| `P`  | purple & **blob** |
+| `c`  | cyan              |
+| `C`  | cyan & **blob**   |
+
+## Packages
+
+In workspace, you may pack resources into packages. Use the config file `packages.json` to specify options generating packages.
+
+The config file `packages.json` could contain configurations for more than one package, that means you can pack more than one package from your workspace.
+
+Attributes for packages can be written in the packages scope, all packages will inherit them.
+
+| Field              | type                                       | description                                                                                                                                                                                                                                                               | Example                                                            |
+| ------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `authors`          | `[string...]`                              | list of authors, describe name and email formated like this:<br/>`name <email>`                                                                                                                                                                                           | `["GodGnidoc <godgnidoc@outlook.com>","Ezr <string121@live.com>"]` |
+| `publisher`        | `string`                                   | The publisher name registered at [](alioth.org.cn)                                                                                                                                                                                                                        | `"cn.org.alioth"`                                                  |
+| `license`          | string                                     | The license type name                                                                                                                                                                                                                                                     | `"MIT"`                                                            |
+| `dependencies`     | `[string...]`                              | Dependency descriptions formated like this:<br/>`"package-id sections..."`<br/>This field will be applied to all packages, so the package variable are available:`$arch` and `$platform`, these two variables will be converted to certain exact string for each package. | `"cn.org.alioth.system-$platform-$arch:3.^ main doc dev"`          |
+| `dev-dependencies` | `[string...]`                              | Development dependency descriptions. If the headers your development section provides needs headers in other package, specify them here.                                                                                                                                  |                                                                    |
+| `packages`         | `{"package-full-name":package-descriptor}` | The field `packages` is an object, each key is a `package-full-name`, and the corresponding value is an object describes the package informations.                                                                                                                        | See `packages.package` for detail                                  |
+
+Example:
+
+~~~json
+{
+    "authors" : ["GodGnidoc <godgnidoc@outlook.com>"],
+    "publisher" : "cn.org.alioth",
+    "license" : "MIT",
+    "dependencies" : [
+        "cn.org.alioth.system-$platform-$arch:^ main"
+    ],
+    "packages" : {
+        "stdlib-linux-x86_64" : {
+
+        }, "stdlib-windows-x86_64" : {
+
+        }, "stdlib-linux-arm7" : {
+
+        }
+    }
+}
+~~~
+
+### Rules about package name
+
+The package name with all informations included is called `package id`, example: `cn.org.alioth.stdlib-linux-x86_64:3.0.2`, it is consists of the following parts:
+- publisher: `cn.org.alioth`
+- package name: `stdlib`
+- platform: `linux`
+- architecture: `x86_64`  
+  There's no rules about how to write an architecture name, but following the general style make your package easy to locate: `x86_64`,`x86`,`arm7`,`arm8`,`arm9`
+- version: `3.0.2`
+
+The `full package name` is used to locate a package in a namespace of one publisher, example: `stdlib-linux-x86_64`
+
+### Packages.package
+
+The configuration file `packages.json` is used to describe package informations built from this workspace. The section `packages` in that file contains multiple objects indexed by the package full name, each represent one package's configuration information.
+
+Attributes in `package` object inherits from the `packages` object.
 
 ## Package
 
@@ -686,9 +752,9 @@ When installing a package from file system or from a remote repository, a config
   "name" : "<string>:package name",
   "version" : "<string>:version number, formatted as x.y.z",
   "repository" : "<uri>: the source where the package is from",
-  "publisher" : "<email>: This email is used to identify two packages with the same name",
+  "publisher" : "every publisher has its own namespace for packages",
   "authors" : [/*names of authors and their email addresses.*/],
-  "license" : "path to the license file",
+  "license" : "license type name or path to the license file",
   "sections" : {
       "main" : {
         "resources" : [/** Paths to resources in this section */],
@@ -730,42 +796,6 @@ Example:
         "doc/manual.md",
         "doc/api.md"
       ]
-    }
-  }
-}
-~~~
-
-## Packages
-
-In workspace, you may pack resources into packages. Use the config file `packages.json` to specify options generating packages.
-
-The config file `packages.json` could contain configurations for more than one package, that means you can pack more than one package from your workspace.
-
-~~~json
-{
-  "stdlib-linux-x86_64" : {
-    "version" : "1.3.47", /** The version number is formatted as `major.minor.patch`.*/
-    "license" : "doc/license",
-    "authors" : [/*names of authors and their email addresses.*/],
-    "sections" : {
-      "main" : {
-        "resources" : [
-          "lib/*.so",
-          "arc/*.a",
-          "inc/*.alioth"
-        ],
-        "dependencies" : [/** If any dependency of this package is another alioth package, describe it here, alioth will help you to manage it. */],
-      }, "dev" : {
-        "resources" : [
-          "inc/*.alioth",
-          "src/*",
-          "makefile"
-        ]
-      }, "doc" : {
-        "resources" : [
-          "doc/manual.md"
-        ]
-      }
     }
   }
 }

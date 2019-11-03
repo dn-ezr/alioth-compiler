@@ -296,9 +296,10 @@ chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {
         }
     };
     
-    if( interactive ) {
+    do if( interactive ) {
         auto seq = msock->requestContents(getUri(desc));
         auto pack = msock->receiveRespond(seq);
+        if( !pack ) break;
         auto respond = pack->respond();
         if( respond->status == Status::SUCCESS ) {
             auto params = respond->contents();
@@ -314,7 +315,7 @@ chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {
             }
             return descs;
         }
-    }
+    } while( false );
     auto path = getPath(desc);
     DIR* dir = opendir(path.data());
     if( !dir )
@@ -373,16 +374,17 @@ uistream SpaceEngine::openDocumentForRead( const srcdesc& desc ) {
     if( !desc.isDocument() )
         throw runtime_error("SpaceEngine::openDocumentForRead( const srcdesc& desc ): descriptor doesn't describe a document.");
     auto uri = getUri(desc);
-    if( interactive ) {
+    do if( interactive ) {
         auto seq = msock->requestContent(uri);
         auto package = msock->receiveRespond(seq);
+        if( !package ) break;
         if( auto ext = package->respond(); ext->status == Status::SUCCESS ) {
             auto stream = std::make_unique<stringstream>();
             auto param = ext->content();
             stream->str(param->data);
             return stream;
         }
-    }
+    } while( false );
     return OpenStreamForRead( uri );
 }
 

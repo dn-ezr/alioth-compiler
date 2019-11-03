@@ -84,6 +84,7 @@ protocol::$Package Socket::receiveRespond( long seq ) {
     using namespace protocol;
     unique_lock<mutex> guard(*in);
 
+    if( !in->is ) return nullptr;
     auto i = in->responds.find(seq);
     if( i == in->responds.end() ) {
         auto it = in->transactions.find(seq);
@@ -91,10 +92,12 @@ protocol::$Package Socket::receiveRespond( long seq ) {
             in->transactions[seq] = new Transaction;
             it = in->transactions.find(seq);
         }
+        // it->second->cv.wait_for(guard, chrono::seconds{1});
         it->second->cv.wait(guard);
         i = in->responds.find(seq);
     }
 
+    if( !in->is ) return nullptr;
     if( i == in->responds.end() ) throw runtime_error("Socket::receiveRespond( long seq ): Internal error occured");
     auto ret = i->second;
     return in->responds.erase(i), ret;
@@ -107,7 +110,7 @@ protocol::$Package Socket::receiveRequest() {
     if( !in->is ) {
         auto pack = new Package;
         pack->action = REQUEST;
-        pack->title = EXIT;
+        pack->title = NOMORE;
         return pack;
     }
     if( !in->requests.size() ) return nullptr;
@@ -153,6 +156,8 @@ void Socket::GuardInputStream( $InputStream s ) {
         if( s->is->peek() == EOF ){
             s->is = nullptr;
             s->cvreq.notify_all();
+            for( auto& [_,t] : s->transactions )
+                t->cv.notify_all();
             break;
         } else {
             auto recv = json::FromJsonStream(*s->is);
@@ -199,6 +204,8 @@ protocol::$Package Socket::ExtractPackage( const json& data ) {
         package->title = WORKSPACE;
     } else if( title == TitleStr(EXIT) ) {
         package->title = EXIT;
+    } else if( title == TitleStr(NOMORE) ) {
+        package->title = NOMORE;
     } else {
         return nullptr;
     }
@@ -243,6 +250,9 @@ protocol::$Package Socket::ExtractRequestPackage( const json& data, protocol::$P
         case EXIT: {
 
         } break;
+        case NOMORE: {
+
+        } break;
         default: return nullptr;
     }
 
@@ -282,6 +292,9 @@ protocol::$Package Socket::ExtractRespondPackage( const json& data, protocol::$P
                 });
             }
         } break;
+        case NOMORE: {
+
+        } break;
         default: return nullptr;
     }
 
@@ -315,6 +328,7 @@ void Socket::sendPackage( json& pack ) {
     out->lock();
     auto data = pack.toJsonString();
     *out->os << data << endl;
+    out->os->flush();
     // this_thread::sleep_for(std::chrono::microseconds{4});
     out->unlock();
     return;
@@ -328,6 +342,7 @@ string protocol::TitleStr( Title title ) {
         case DIAGNOSTICS: return "diagnostics";
         case EXIT: return "exit";
         case EXCEPTION: return "exception";
+        case NOMORE: return "nomore";
         default: return "";
     }
 }

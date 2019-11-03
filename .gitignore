@@ -1,3 +1,4 @@
+*.sh
 obj/*.obj
 obj/*.o
 bin/*

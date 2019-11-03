@@ -12,16 +12,22 @@ class basic_thing {
         virtual ~basic_thing() {}
     public: 
         basic_thing():ref_count(0){}
-        basic_thing(const basic_thing&) = default;
-        basic_thing(basic_thing&&) = default;
-        basic_thing& operator = ( const basic_thing& ) = default;
-        basic_thing& operator = ( basic_thing&& ) = default;
+        basic_thing(const basic_thing&):ref_count(0){}
+        basic_thing(basic_thing&&):ref_count(0){}
+        basic_thing& operator = ( const basic_thing& ){return *this;}
+        basic_thing& operator = ( basic_thing&& ){return *this;}
         template<typename T>friend class agent;
 };
 
 class thing : public basic_thing {
     public:     token   phrase;
     template<typename T>friend class agent;
+
+    thing() = default;
+    thing(const thing&) = default;
+    thing(thing&&) = default;
+    thing& operator = ( const thing& ) = default;
+    thing& operator = ( thing&& ) = default;
 };
 
 template<typename T>

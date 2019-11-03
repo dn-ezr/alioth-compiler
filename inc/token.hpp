@@ -4,94 +4,13 @@
 #include "alioth.hpp"
 #include "vt.hpp"
 #include "vn.hpp"
+#include "ct.hpp"
+#include "pvt.hpp"
 #include <string>
 
 namespace alioth {
 
 class Diagnostics;
-
-/**
- * @enum-class CT : 符号分类
- * @desc :
- *  符号分类是对文法符号的分类
- *  当需要以这些分类为单位判断文法符号时
- *  便可以简省代码复杂度,减小维护开销
- */
-enum class CT {
-    BASIC_TYPE,         //基础数据类型终结符
-    ELETYPE,            //元素类型
-    CONSTANT,           //字面常量
-    ASSIGN,             //赋值运算符
-    RELATION,           //关系运算符
-    OPERATOR,           //所有运算符
-    PREFIX,             //前缀运算符
-    INFIX,              //中缀运算符
-    SUFFIX,             //后缀运算符
-
-    IMPLEMENTATION,     //表达式,分支,循环,流控制,块
-    // OPL,                //运算符标签
-    // OPL_SPECIAL,        //特化运算符标签
-    // OPL_ASSIGN,         //赋值运算符标签
-    // OPL_MONO,           //单目运算符标签
-    // OPL_BINO,           //双目运算符标签
-
-    /**
-     * 约定标签
-     * MF -- modifier
-     * LB -- label
-     */
-    // MF_ABSTRACT,
-    // MF_REV,
-    // MF_ISM,
-    // MF_PREFIX,
-    // MF_SUFFIX,
-    // MF_ATOMIC,
-    // MF_RAW,
-    // LB_SCTOR,
-    // LB_LCTOR,
-    // LB_CCTOR,
-    // LB_MCTOR,
-    // LB_DTOR,
-    // LB_MEMBER,
-    // LB_WHERE,
-    // LB_MOVE,
-    // LB_NEGATIVE,
-    // LB_BITREV,
-    // LB_INCREASE,
-    // LB_DECREASE,
-    // LB_INDEX,
-    // LB_ADD,
-    // LB_SUB,
-    // LB_MUL,
-    // LB_DIV,
-    // LB_MOL,
-    // LB_BITAND,
-    // LB_BITOR,
-    // LB_BITXOR,
-    // LB_SHL,
-    // LB_SHR,
-    // LB_LT,
-    // LB_GT,
-    // LB_LE,
-    // LB_GE,
-    // LB_EQ,
-    // LB_NE,
-    // LB_ASSIGN,
-    // PP_THEN,
-    // PP_ON,
-};
-
-/**
- * @enum-class PVT : 约定
- * @desc :
- *  Alioth 0.3.1编译器将约定判定从CT中剥离出来
- */
-enum class PVT {
-    PRIVATE, // private -
-    PROTECTED, // protected *
-    PUBLIC, // public +
-    ABSTRACT, // abstract
-};
 
 /**
  * @class token : 记号
