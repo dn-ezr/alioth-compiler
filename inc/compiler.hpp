@@ -233,6 +233,13 @@ class AliothCompiler : public AbstractCompiler {
         bool performSyntaticAnalysis();
 
         /**
+         * @method performSemanticAnalysis : 执行语义分析
+         * @desc :
+         *  为已经建立语法树的目标模块执行语义分析，为中间代码生成做准备 
+         */
+        bool performSemanticAnalysis();
+
+        /**
          * @method performSyntaticAnalysis : 执行语法分析
          * @desc :
          *  为指定的模块执行语法分析，挂载片段

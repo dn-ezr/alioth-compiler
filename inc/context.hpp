@@ -27,7 +27,7 @@ class CompilerContext {
 
         /**
          * @member package : 模块部署信息
-         * @desc : <package-name,<module-name,signature>> 包中的模块部署信息 */
+         * @desc : <package-id,<module-name,signature>> 包中的模块部署信息 */
         map<string,map<string,$signature>> package;
 
         /**

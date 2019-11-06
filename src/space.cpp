@@ -16,16 +16,19 @@
 namespace alioth {
 using namespace std;
 
+const string PackageLocator::THIS_ARCH = "x86_64";
 #ifdef __WINDOWS__
 const char SpaceEngine::dirdvc = '\\';
 const string SpaceEngine::dirdvs = "\\";
 const string SpaceEngine::default_work_path = ".\\";
 const string SpaceEngine::default_root_path = "C:\\Alioth\\";
+const string PackageLocator::THIS_PLATFORM = "windows";
 #else
 const char SpaceEngine::dirdvc = '/';
 const string SpaceEngine::dirdvs = "/";
 const string SpaceEngine::default_work_path = "./";
 const string SpaceEngine::default_root_path = "/usr/lib/alioth/";
+const string PackageLocator::THIS_PLATFORM = "linux";
 #endif
 
 const srcdesc srcdesc::error = {flags:0};
@@ -173,6 +176,215 @@ bool Uri::operator < ( const Uri& an ) const {
         path < an.path and
         query < an.query and
         fragment < an.fragment;
+}
+
+PackageLocator::operator bool()const {
+    return !name.empty() and !publisher.empty();
+}
+
+PackageLocator PackageLocator::Parse( const string& str ) {
+
+    if( str.empty() ) return {};
+
+    PackageLocator pl;
+    string ps; // 以点分割的字符串，不包含点
+    string sec; // 用于分析段名称的
+    string aps; // 用于分析架构和平台的字符串
+    bool ma = false; // 架构名称是否启用通配符
+    bool mp = false; // 平台名称是否启用通配符
+    int state = 1;
+    bool stay = false;
+    auto it = str.begin();
+    int vof = 0; // 版本号偏移量，0表示正在分析主版本号，1表示次版本号，2表示补丁号
+
+    while( state > 0 ) {
+        switch( state ) {
+            case 1: // 分析发布者或包名
+                switch( *it ) {
+                    case 'a' ... 'z': case 'A' ... 'Z': case '0' ... '9': case '_': 
+                        ps += *it;
+                        break;
+                    case '.':
+                        if( ps.empty() ) state = -__LINE__; //[ERROR]: 发布者字段中出现空片段
+                        if( pl.publisher.empty() )
+                            pl.publisher = ps;
+                        else
+                            pl.publisher += "." + ps;
+                        ps.clear();
+                        break;
+                    case ':': case '-': case ' ': case '\0':
+                        if( ps.empty() ) state = -__LINE__; //[ERROR]: 包名称为空
+                        if( pl.publisher.empty() ) state = -__LINE__; //[ERROR]: 发布者为空
+                        if( state < 0 ) break;
+                        pl.name = ps;
+                        ps.clear();
+                        if( *it == ':' ) state = 2;
+                        else if( *it == '-' ) state = 5;
+                        else if( *it == ' ' ) state = 4;
+                        else if( *it == '\0' ) (pl.major = pl.minor = pl.patch = -1),(state = 0);
+                        else state = -__LINE__; //[ERROR]: 内部错误
+                        break;
+                    default:
+                        state = -__LINE__; //[ERROR]: 包名称内无效的输入
+                        break;
+                } break;
+            case 2: // 分析版本号
+                switch( *it ) {
+                    case '0' ... '9': {
+                        auto& version = (
+                            (vof==0)?
+                                pl.major:
+                                ((vof==1)?
+                                    pl.minor:
+                                    pl.patch ));
+                        version = version*10 + *it-'0';
+                    } break;
+                    case '^': {
+                        if( *(it-1) != '.' and *(it-1) != ':' ) {state = -__LINE__; break;} //[ERROR]: 匹配标记不在数字开端
+                        pl.patch = -1;
+                        if( vof < 2 ) pl.minor = -1;
+                        if( vof < 1 ) pl.major = -1;
+                        state = 3;
+                    } break;
+                    case '.':
+                        vof += 1;
+                        if( vof > 2 ) state = -__LINE__; //[ERROR]: 版本号超长
+                        break;
+                    case ' ': case '\0':
+                        if( vof < 2 ) state = -__LINE__; //[ERROR]: 版本号不完整
+                        else if( *it == ' ' ) state = 4;
+                        else if( *it == '\0' ) state = 0;
+                        else state = -__LINE__; //[ERROR]: 内部错误
+                        break;
+                    default:
+                        state = -__LINE__; //[ERROR]: 版本号中无效的输入
+                } break;
+            case 3:
+                switch( *it ) {
+                    case ' ':
+                        state = 4;
+                        break;
+                    case '\0':
+                        state = 0;
+                        break;
+                    default:
+                        state = -__LINE__; //[ERROR]: 最高匹配的版本号之后无效的输入
+                        break;
+                } break;
+            case 4:
+                switch( *it ) {
+                    case 'a':case 'c':case 'd':case 'e':case 'i':case 'm':case 'n':case 'o':case 'v':
+                        sec += *it;
+                        break;
+                    case ' ':case '\0': {
+                        if( sec.empty() ) state = -__LINE__; //[ERROR]: 段名称为空
+                        auto sof = (
+                            (sec == "main")?
+                                PackageLocator::MAIN:
+                                (sec == "doc")?
+                                    PackageLocator::DOC:
+                                    (sec == "dev")?
+                                        PackageLocator::DEV:
+                                        0);
+                        if( sof == 0 ) state = -__LINE__; //[ERROR]: 非法的段名称
+                        if( (pl.sections bitand sof) != 0 ) state = -__LINE__; //[ERROR]: 重复的段
+                        if( state < 0 ) break;
+                        pl.sections bitor sof;
+                        sec.clear();
+                        if( *it == '\0' ) state = 0;
+                    } break;
+                    default:
+                        state = -__LINE__; //[ERROR]: 段名称中非法的输入
+                        break;
+                } break;
+            case 5:
+                switch( *it ) {
+                    case 'a' ... 'z':
+                    case 'A' ... 'Z':
+                    case '0' ... '9':
+                    case '_': 
+                        aps += *it;
+                        if( ma ) state = -__LINE__; //[ERROR]: 通配符已启用
+                        break;
+                    case '%':
+                        if( aps.empty() ) (ma = true),(aps += *it);
+                        else state = -__LINE__; //[ERROR]: 通配符应当单独存在
+                        break;
+                    case '-': case ':':case ' ':case '\0':
+                        if( aps.empty() ) state = -__LINE__; //[ERROR]: 架构名为空
+                        else if( *it == '-' ) state = 6;
+                        else if( *it == ':' ) state = 2;
+                        else if( *it == ' ' ) state = 4;
+                        else if( *it == '\0' )(pl.major = pl.minor = pl.patch = -1), (state = 0);
+                        else state = -__LINE__; //[ERROR]: 内部错误
+                        pl.arch = aps;
+                        aps.clear();
+                        break;
+                    default:
+                        state = -__LINE__; //[ERROR]: 非法输入
+                        break;
+                } break;
+            case 6:
+                switch( *it ) {
+                    case 'a' ... 'z':
+                    case 'A' ... 'Z':
+                    case '0' ... '9':
+                    case '_':
+                        aps += *it;
+                        if( mp ) state = -__LINE__; //[ERROR]: 通配符已启用
+                        break;
+                    case '%':
+                        if( aps.empty() ) (mp = true),(aps += *it);
+                        else state = -__LINE__; //[ERROR]: 通配符应当单独存在
+                        break;
+                    case ':': case ' ': case '\0':
+                        if( aps.empty() ) state = -__LINE__; //[ERROR]: 平台名为空
+                        else if( *it == ':' ) state = 2;
+                        else if( *it == ' ' ) state = 4;
+                        else if( *it == '\0' )(pl.major = pl.minor = pl.patch = -1), state = 0;
+                        else state = -__LINE__; //[ERROR]: 内部错误
+                        pl.platform = aps;
+                        aps.clear();
+                        break;
+                    default:
+                        state = -__LINE__; //[ERROR]: 非法输入
+                        break;
+                } break;
+            default:
+                state = -__LINE__; //[ERROR]: 内部错误
+                break;
+        }
+        if( stay ) stay = false;
+        else it ++;
+    }
+
+    if( state >= 0 ) return pl;
+    return {};
+}
+
+string PackageLocator::toString( bool uriPath )const {
+    string ret = publisher + (uriPath?"/":".") + name;
+    
+    if( arch.empty() ) ret += "-" + THIS_ARCH;
+    else ret += "-" + arch;
+
+    if( platform.empty() ) ret += "-" + THIS_PLATFORM;
+    else ret += "-" + platform;
+
+    if( uriPath ) return ret;
+
+    if( major < 0 ) ret += ":^";
+    else {
+        ret += ":" + to_string(major) + ".";
+        if( minor < 0 ) ret += "^";
+        else {
+            ret += to_string(minor) + ".";
+            if( patch < 0 ) ret += "^";
+            else ret += to_string(patch);
+        }
+    }
+
+    return ret;
 }
 
 bool srcdesc::isSpace() const {
@@ -343,9 +555,25 @@ chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {
     return descs;
 }
 
-chainz<string> SpaceEngine::enumeratePackages() {
+chainz<string> SpaceEngine::enumeratePublishers() {
     chainz<string> res;
     for( auto& desc : enumerateContents({flags:ROOT,name:"pkg"}) )
+        if( !desc.isDocument() ) res << desc.name;
+    return res;
+}
+
+chainz<string> SpaceEngine::enumeratePackages( const string& publisher ) {
+    chainz<string> res;
+    if( publisher.empty() ) return {};
+    for( auto& desc : enumerateContents({flags:ROOT,name:"pkg"+dirdvs+publisher}) )
+        if( !desc.isDocument() ) res << desc.name;
+    return res;
+}
+
+chainz<string> SpaceEngine::enumerateVersions( const string& publisher, const string& package ) {
+    chainz<string> res;
+    if( publisher.empty() or package.empty() ) return {};
+    for( auto& desc : enumerateContents({flags:ROOT,name:"pkg"+dirdvs+publisher+dirdvc+package}))
         if( !desc.isDocument() ) res << desc.name;
     return res;
 }
@@ -421,8 +649,14 @@ fulldesc SpaceEngine::statDataSource( Uri uri ) {
     ptree<srcdesc> tree;
     tree[((string)getUri({flags:WORK})).data()].store({flags:WORK});
     tree[((string)getUri({flags:ROOT})).data()].store({flags:ROOT});
-    for( auto& pkg : enumeratePackages() ) 
-        tree[pkg.data()].store({flags:APKG,package:pkg});
+    for( auto& pub : enumeratePublishers() )
+        for( auto& pkg : enumeratePackages(pub) )
+            for(auto ver : enumerateVersions(pub,pkg) ) {
+                auto pos = ver.find("latest");
+                if( pos != string::npos ) ver.replace(pos,6, "^");
+                auto package = pub+"."+pkg+":"+ver;
+                tree[(pub+dirdvs+pkg+dirdvs+ver).data()].store({flags:APKG,package:package});
+            }
 
     /** 检测主空间 */
     if( auto main = tree.far(is.data()); !main or !main->getp() ) {
@@ -471,8 +705,20 @@ Uri SpaceEngine::getUri( const srcdesc& desc ) {
         if( mapkg.count(desc.package) ) {
             uri = mapkg[desc.package].mapping;
         } else {
+            auto loc = PackageLocator::Parse(desc.package);
+            if( !loc ) throw runtime_error("SpaceEngine::getUri( const srdesc& desc ): invalid package locator.");
             uri = mroot.mapping;
-            uri.path += string("pkg") + dirdvs + desc.package + dirdvs;
+            uri.path += string("pkg") + dirdvs + loc.toString(true) + dirdvs;
+            if( loc.major < 0 ) uri.path += "latest";
+            else {
+                uri.path += to_string(loc.major) + ".";
+                if( loc.minor < 0 ) uri.path += "latest";
+                else {
+                    uri.path += to_string(loc.minor) + ".";
+                    if( loc.patch < 0 ) uri.path += "latest";
+                    else uri.path += to_string(loc.patch);
+                }
+            }
         }
     } else {
         throw runtime_error("SpaceEngine::getUri( const srcdesc& desc ): no main space specified.");

@@ -3,18 +3,20 @@
 
 #include "air_type.hpp"
 
-namespace alioth::air {
+namespace alioth {
 
 /**
- * @class Context : AIR上下文
+ * @class AirContext : AIR上下文
  * @desc :
  *  AIR上下文用于在全局管理可能被重用的类型信息。
  *  AIR上下文用于在所有相关联的模块之间管理符号表。
  */
-class Context {
+class AirContext {
 
     private:
-        Types types;
+        air::Types types;
+
+    public:
 };
 
 }

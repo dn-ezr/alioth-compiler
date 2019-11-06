@@ -55,6 +55,11 @@ struct CompilingTarget : public Target {
      * @member modules : 模块名录
      * @desc : 要编译的模块的名录，若此名录为空，则编译所有扫描到的模块 */
     chainz<string> modules;
+
+    /**
+     * @member variables : 编译器变量
+     * @desc : 编译器变量通过命令行或配置文件指定，用于在源码中提供编译期静态求值的变量，可以用于拼接依赖包名称 */
+    json variables;
 };
 
 /**

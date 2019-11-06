@@ -1712,7 +1712,9 @@ class SyntaxContext {
         $metimpl constructMethodImplementation( $scope scope );
 
         $blockstmt constructBlockStatement( $scope scope );
-        $element constructElementStatement( $scope scope );
+
+        /** @param autowire : 是否正在扫描自动注入元素，自动注入元素由on结束定义，不要求指定数据类型,不接受初始化表达式 */
+        $element constructElementStatement( $scope scope, bool autowire );
         $exprstmt constructExpressionStatement( $scope scope );
         $branchstmt constructBranchStatement( $scope scope );
         $switchstmt constructSwitchStatement( $scope scope );
@@ -1721,10 +1723,10 @@ class SyntaxContext {
         $fctrlstmt constructFlowControlStatement( $scope scope );
         $dostmt constructDoStatement( $scope scope );
 
-        // @param absorb : 是否吸收左尖括号为模板参数列表的开头符号
+        /** @param absorb : 是否吸收左尖括号为模板参数列表的开头符号 */
         $nameexpr constructNameExpression( $scope scope, bool absorb );
 
-        // @param absorb : 用于表明是否已经处于可以吸收'<'的语境，此值可能由于class关键字的引导二改变
+        /** @param absorb : 用于表明是否已经处于可以吸收'<'的语境，此值可能由于class关键字的引导二改变 */
         $typeexpr constructTypeExpression( $scope scope, bool absorb );
         $constant constructConstantExpression( $scope scope );
         $lctorexpr constructListConstructingExpression( $scope scope );

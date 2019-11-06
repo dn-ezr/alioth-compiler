@@ -113,7 +113,7 @@ struct Diagnostic {
     }
 };
 
-/**
+/*
  * @struct DiagnosticTemplate : 诊断信息模板
  * @desc :
  *  诊断信息模板描述了一个诊断信息结构体如何被处理成为一个诊断信息字符春

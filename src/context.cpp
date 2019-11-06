@@ -132,7 +132,7 @@ bool CompilerContext::loadModules( srcdesc space ) {
     switch( space.flags = SpaceEngine::PeekMain(space.flags) ) {
         case WORK: cache_map = &work; break;
         case ROOT: cache_map = &root; break;
-        case APKG: cache_map = &package[space.name]; break;
+        case APKG: cache_map = &package[space.package]; break; //[FIXME]: 没有统一版本号中^和对应版本号，导致此版本的包可能被加载两次，甚至更多次
     }
 
     /** 读取缓冲文件 */
@@ -279,7 +279,7 @@ fulldesc CompilerContext::loadDocument( fulldesc doc, bool forceload ) {
     }
     auto lcontext = LexicalContext( *is, true );
     auto tokens = lcontext.perform();
-    auto scontext = SyntaxContext(tokens, diagnostics);
+    auto scontext = SyntaxContext(tokens, diagnostics[spaceEngine.getUri(doc)]);
     auto sig = scontext.extractSignature(src);
     if( !sig ) {
         if( module ) module->docs.erase(doc);

@@ -6,7 +6,7 @@ date: 2019/07/17
 
 # 1. About this manual
 
-This manual is written for users of the compiler of the Alioth programming language. The corresponding compiler version is `V0.3`. This manual states all functions provided by the compiler and how to use them. This document is written in UTF8 encoding, formatted in markdown format.
+This manual is written for users of the compiler of the Alioth programming language. The corresponding compiler version is `V0.3.*`. This manual states all functions provided by the compiler and how to use them. This document is written in UTF8 encoding, formatted in markdown format.
 
 > Note:
 > &nbsp;&nbsp;&nbsp;&nbsp;The old version of this compiler was named "**aliothc**", the last letter 'c' means "**compiler**". But compiling is no more the only function of this program for now, so the program is renamed as "**alioth**", please type the correct command according the version of compiler you're using.
@@ -59,14 +59,13 @@ This manual is written for users of the compiler of the Alioth programming langu
   - [Options](#options)
 - [Appendix B: Configurations and config files](#appendix-b-configurations-and-config-files)
   - [Diagnostic](#diagnostic)
-  - [Packages](#packages)
-    - [Rules about package name](#rules-about-package-name)
-    - [Packages.package](#packagespackage)
   - [Package](#package)
-  - [Provide](#provide)
-  - [Repository](#repository)
+    - [Rules about package name](#rules-about-package-name)
   - [Space](#space)
   - [Targets](#targets)
+  - [Package](#package-1)
+  - [Provide](#provide)
+  - [Repository](#repository)
 
 # 2. Basic concepts
 
@@ -78,11 +77,15 @@ Some of them has the same name as the other concept but carries different meanin
 
 Unlike the common compilers always process some source documents as input and generate a file in certain format as output, the compiler of the Alioth programming language does more.
 
-Basically you can just execute command to run the compiler to generate some output file from source documents. Furthermore you can start the compiler to host a repository or to host a package.
+Basically you can just execute command to run the compiler to generate some output file from source documents. Furthermore you can start the compiler to host a repository or to pack up a package.
 
-A **target** is an object which is the reason why you run the compiler. May be the output file in format of static link library or dynamic link library or executable entity. May be the hosted repository or the hosted package.
+A **target** is an object which is the reason why you run the compiler. May be the output file in format of static link library or dynamic link library or executable entity. May be the hosted repository or the package.
+
+In command line interface$_{cli}$, you must sepecfy the **target** by passing certain option to the compiler command line arguments.
 
 ### 2.1.1. Auto
+
+This target can be specified by passing the option `: <target file name>`.
 
 Compiler will try to generate static link library or binary executable entity. It depends on wether compiler could find the entry mark within source code.
 
@@ -170,17 +173,19 @@ Compiler will ensure every packages released has at least two main sections, whi
 
 Every sections has a attribute set describes dependencies of this section and other information about this section.
 
-There are four available sections defined which are section `dev`, `main`, `doc` and section `src`.
+There are three available sections defined which are section `dev`, `main`, `doc`.
 
 ### 2.3.2. main section
 
 No matter the package is a library or an application, main section should always provide the final product.
 
-The major difference is whether have you to build an environment to develop the package. The answer is no, if you're installing the "main" section.
+The major difference is whether have you to build an environment to develope the package. The answer is no, if you're installing the "main" section.
 
 When packing, only resources in those three subdirs are accepted, which are subdir `BIN`,`ARC` and `LIB` . Compiler will generate `providing table` to describe what modules are provided by this section, and which target file contains it. There must be up to only one target file become the provider of certain module.
 
-Resorces in extra space are accepted too.
+Resorces in extra space are accepted too, you can specify the extra resources in the configuration file.
+
+The file `doc/.aliothignore` can be used to filter resources you wanna keep, it influences all sections.
 
 ### 2.3.3. dev section
 
@@ -208,8 +213,6 @@ org.alioth.stdlib-linux-x64:3.0.1
 
 Only field `publisher` and field `name` are necessary every time, other field will be filled according to configurations automatically.
 
-Any dependency indicates the **main** section of the package.
-
 ## 2.4. Repository
 
 Repository is the container of packages.
@@ -218,6 +221,26 @@ Repository is the container of packages.
 
 There always a static repository which is used to host packages installed locally, there is no need to run a compiler to host it.
 
+Defaultly, the compiler organize the packages in the following path structure.
+
+- alioth root
+  - apkg
+    - publisher
+      - package-arch-platform
+        - 0.0.1
+          - lib
+          - inc
+          - doc
+        - 0.1.10
+          - lib
+          - inc
+          - doc
+        - 3.1.7
+          - lib
+          - inc
+          - doc
+        - latest -> 3.1.7
+
 ### 2.4.2. Remote repository
 
 You can host your own repository on your server. Remote repositories can be located via `URI`, scheme is `alioth://`.
@@ -225,8 +248,10 @@ You can host your own repository on your server. Remote repositories can be loca
 The scheme `alioth` stands for the `alioth compiler communicating protocol`, the format of the uri as follow:
 
 ~~~
-alioth://[<user>@]<host>/<repository>[?<options>]
+alioth://<host>/<repository>[?<options>]
 ~~~
+
+
 
 # 3. Compiling targets
 
@@ -337,7 +362,7 @@ alioth v: check -- 0/1
 
 The command shown above starts the compiler in the interactive mode, the option `-- 0/1` means use the standard input and output streams to communicate with IDE.
 
-In the `interactive` mode, compiler will send a asking package to the output stream to ask whether the IDE have the resource the compiler needs.
+In the `interactive` mode, compiler will send an asking package to the output stream to ask whether the IDE have the resource the compiler needs.
 
 like this: `{"cmd":"requestContent","url":"./src/hello.alioth"}` and if the IDE do have contents of the document the compiler asked, it should respond those contents to the compiler: `{"cmd":"respondContent","status":"success","data":"...."}`.
 
@@ -671,57 +696,54 @@ The attribute `msg` is a formatted string, describes hwo the way to organize `to
 
 Here's a table of color hint available in the formatted string.
 
-| hint | color             |
-| ---- | ----------------- |
-| `r`  | red               |
-| `R`  | red & **blob**    |
-| `g`  | green             |
-| `G`  | green & **blob**  |
-| `b`  | blue              |
-| `B`  | blue & **blob**   |
-| `y`  | yellow            |
-| `Y`  | yellow & **blob** |
-| `p`  | purple            |
-| `P`  | purple & **blob** |
-| `c`  | cyan              |
-| `C`  | cyan & **blob**   |
+| hint | color                                                 |
+| ---- | ----------------------------------------------------- |
+| `r`  | <span style="color:darkred">red</span>                |
+| `R`  | <span style="color:darkred">red</span> & **blob**     |
+| `g`  | <span style="color:darkgreen">green</span>            |
+| `G`  | <span style="color:darkgreen">green</span> & **blob** |
+| `b`  | <span style="color:darkblue">blue</span>              |
+| `B`  | <span style="color:darkblue">blue</span> & **blob**   |
+| `y`  | <span style="color:yellow">yellow</span>              |
+| `Y`  | <span style="color:yellow">yellow</span> & **blob**   |
+| `p`  | <span style="color:purple">purple</span>              |
+| `P`  | <span style="color:purple">purple</span> & **blob**   |
+| `c`  | <span style="color:darkcyan">cyan</span>              |
+| `C`  | <span style="color:darkcyan">cyan</span> & **blob**   |
 
-## Packages
+## Package
 
-In workspace, you may pack resources into packages. Use the config file `packages.json` to specify options generating packages.
+In workspace, you may pack resources into package. Use the config file `package.json` to specify options generating package.
 
-The config file `packages.json` could contain configurations for more than one package, that means you can pack more than one package from your workspace.
-
-Attributes for packages can be written in the packages scope, all packages will inherit them.
+Attributes available for package configuration listed here.
 
 | Field              | type                                       | description                                                                                                                                                                                                                                                               | Example                                                            |
 | ------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+|`name`|`string`|package name|`"stdlib"`|
+|`arch`|`string`|architecture name|`x64`|
+|`platform`|`string`|operating system name or runtime environment name|`linux`|
 | `authors`          | `[string...]`                              | list of authors, describe name and email formated like this:<br/>`name <email>`                                                                                                                                                                                           | `["GodGnidoc <godgnidoc@outlook.com>","Ezr <string121@live.com>"]` |
-| `publisher`        | `string`                                   | The publisher name registered at [](alioth.org.cn)                                                                                                                                                                                                                        | `"cn.org.alioth"`                                                  |
+| `publisher`        | `string`                                   | The publisher name registered at [](https://alioth.org.cn)                                                                                                                                                                                                                        | `"cn.org.alioth"`                                                  |
 | `license`          | string                                     | The license type name                                                                                                                                                                                                                                                     | `"MIT"`                                                            |
 | `dependencies`     | `[string...]`                              | Dependency descriptions formated like this:<br/>`"package-id sections..."`<br/>This field will be applied to all packages, so the package variable are available:`$arch` and `$platform`, these two variables will be converted to certain exact string for each package. | `"cn.org.alioth.system-$platform-$arch:3.^ main doc dev"`          |
 | `dev-dependencies` | `[string...]`                              | Development dependency descriptions. If the headers your development section provides needs headers in other package, specify them here.                                                                                                                                  |                                                                    |
-| `packages`         | `{"package-full-name":package-descriptor}` | The field `packages` is an object, each key is a `package-full-name`, and the corresponding value is an object describes the package informations.                                                                                                                        | See `packages.package` for detail                                  |
 
 Example:
 
 ~~~json
 {
+    "name": "stdlib",
+    "arch" : "x64",
+    "platform" : "linux",
+    "version" : "3.0.4",
     "authors" : ["GodGnidoc <godgnidoc@outlook.com>"],
     "publisher" : "cn.org.alioth",
     "license" : "MIT",
     "dependencies" : [
         "cn.org.alioth.system-$platform-$arch:^ main"
-    ],
-    "packages" : {
-        "stdlib-linux-x86_64" : {
-
-        }, "stdlib-windows-x86_64" : {
-
-        }, "stdlib-linux-arm7" : {
-
-        }
-    }
+    ], "dev-dependencies" : [
+        "cn.org.alioth.system-$platform-$arch:^ main dev"
+    ]
 }
 ~~~
 
@@ -737,11 +759,58 @@ The package name with all informations included is called `package id`, example:
 
 The `full package name` is used to locate a package in a namespace of one publisher, example: `stdlib-linux-x86_64`
 
-### Packages.package
+## Space
 
-The configuration file `packages.json` is used to describe package informations built from this workspace. The section `packages` in that file contains multiple objects indexed by the package full name, each represent one package's configuration information.
+Generally, this file is automatically generated, field `module` is used to speed up the dependencies closing.
 
-Attributes in `package` object inherits from the `packages` object.
+When compiling output files, other two fields `lib`,`arc` will be modified to describe modules provided by output files.
+
+~~~json
+{
+    "modules": {
+        "hello": {
+            "code": [
+                {
+                    "flags": 32775,
+                    "mtime": 1572790014,
+                    "name": "hello.alioth",
+                    "package": "",
+                    "size": 168
+                }
+            ],
+            "deps": [],
+            "name": "hello"
+        },
+        "test": {
+            "code": [
+                {
+                    "flags": 32775,
+                    "mtime": 1571455315,
+                    "name": "test.alioth",
+                    "package": "",
+                    "size": 11
+                }
+            ],
+            "deps": [],
+            "name": "test"
+        }
+    }, "lib" : {
+        "target.so" : ["hello"]
+    }, "arc" : {
+        "file.a" : ["test","hello"]
+    }
+}
+~~~
+
+## Targets
+
+The config file `target.json` can be used to specify some attributes for targets.
+
+You may change the target platform of this target, change the link rule of the target etc.
+
+But this function is currently not supported.
+
+> [TODO]
 
 ## Package
 
@@ -829,68 +898,5 @@ Example:
 ~~~
 
 ## Repository
-
-> [TODO]
-
-## Space
-
-Generally, this file is automatically generated, the only field filled is the field `modules`; This field is used to speed up the dependencies closing.
-
-You can manually insert the `mapping` section to map sub-spaces to other locations.
-
-~~~json
-{
-  "mapping" : {
-    "bin" : "ftps://company.org/target/bin/",
-    "inc" : "http://company.org/libraries/inc/",
-    "src" : "./main/src/"
-  }, "modules" : {
-    "iTalk" : {
-      "deps": [
-        {
-          "alias" : "",
-          "name" : "io",
-          "from" : ""
-        } , {
-          "alias": "this",
-          "name": "net",
-          "from" : ""
-        } , {
-          "alias": "",
-          "name": "memory"
-        } , {
-          "alias": "",
-          "name": "string"
-        }
-      ],
-      "code" : [
-        {
-          "mtim" : 1558544000,
-          "name" : "talk.alioth",
-          "size" : 1189,
-          "space" : 64
-        },{
-          "mtim" : 1558541185,
-          "name" : "talk.alioth",
-          "size" : 470,
-          "space" : 16
-        }
-      ]
-    }
-  }
-}
-~~~
-
-If the `mapping` section is modified, the config file `space.json` will be packed when packing package.
-
-The rule to map sub-spaces is simple, just write down uri which the compiler can handle.
-
-## Targets
-
-The config file `target.json` can be used to specify some attributes for targets.
-
-You may change the target platform of this target, change the link rule of the target etc.
-
-But this function is currently not supported.
 
 > [TODO]

@@ -2,6 +2,7 @@
 #define __compiler_cpp__
 
 #include "compiler.hpp"
+#include "semantic.hpp"
 #include "lexical.hpp"
 #include "syntax.hpp"
 #include "alioth.hpp"
@@ -350,6 +351,8 @@ int AliothCompiler::execute() {
     context.loadModules({flags:WORK});
     if( !detectInvolvedModules() ) return 2;
     if( !performSyntaticAnalysis() ) return 3;
+    if( !performSemanticAnalysis() ) return 4;
+    if( target.indicator == Target::VALIDATE ) return 0;
 
     return 0;
 }
@@ -428,6 +431,11 @@ bool AliothCompiler::performSyntaticAnalysis() {
     return success;
 }
 
+bool AliothCompiler::performSemanticAnalysis() {
+    auto semantic = SemanticContext( context, diagnostics );
+    return false; // [TODO]
+}
+
 bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
     bool success = true;
     for( auto& [doc,_] : sig->docs ) {
@@ -488,7 +496,12 @@ bool AliothCompiler::confirmModuleCompleteness( $signature mod, chainz<tuple<$si
         srcdesc sp;
         auto sig = calculateDependencySignature(dep,&sp);  //解算依赖空间
         if( !sig ) {
-            diagnostics[dep->getDocUri()]("20", mod->name, space, dep->name ); 
+            if( dep->from.tx.size() ) {
+                auto [suc,str,dia] = dep->from.extractContent();
+                diagnostics[dep->getDocUri()]("20",mod->name, space, dep->name, str );
+            } else {
+                diagnostics[dep->getDocUri()]("20", mod->name, space, dep->name, "*" );
+            }
             correct = false; 
             continue;
         }
@@ -522,6 +535,8 @@ srcdesc AliothCompiler::calculateDependencySpace( $depdesc desc ) {
     if( !sig ) return srcdesc::error;
     auto local_desc = sig->space;
     if( !success ) return (diagnostics += ds),srcdesc::error;
+    desc->from.tx = from;
+    desc->from.id = VT::L::LABEL;
     if( from == "." ) {
         return local_desc;
     } else if( from == "alioth" ) {

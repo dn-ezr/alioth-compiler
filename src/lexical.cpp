@@ -141,6 +141,7 @@ tokens LexicalContext::perform() {
         case 14:
             if( pre == 's' ) test(VT::CONST,3);
             else if( pre == 't' ) test(VT::CONTINUE,3);
+            else if( islabel(pre) ) state = 4;
             else check(VT::L::LABEL,false);
             break;
         case 15:

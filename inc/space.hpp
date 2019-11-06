@@ -65,6 +65,78 @@ struct Uri {
 };
 
 /**
+ * @struct PckageLocator : 包定位器
+ * @desc :
+ *  包定位器的内容和包ID的内容基本一致，但其中只有publisher和name总是必须的字段
+ *  其他字段可以根据编译器的当前配置进行自动填充
+ *  格式: publisher.packageName-arch-platform:major.minor.patch sections
+ *  样例: cn.org.alioth.stdlib:^
+ *  样例: cn.org.alioth.stdlib:3.^ dev
+ */
+struct PackageLocator {
+
+    public:
+        static constexpr int MAIN = 1;
+        static constexpr int DEV = 2;
+        static constexpr int DOC = 3;
+        static const string THIS_ARCH;
+        static const string THIS_PLATFORM;
+
+    public:
+        /**
+         * @member publisher : 发布者
+         * @desc : 发布者身份是在alioth.org.cn上注册的命名空间 */
+        string publisher;
+
+        /**
+         * @member name : 包名称
+         * @desc : 包名称是最短的包的名称 */
+        string name;
+
+        /**
+         * @member arch : 架构
+         * @desc : [可选]包的目标机器的架构名称 */
+        string arch;
+
+        /**
+         * @member platform : 平台
+         * @desc : [可选]]包所在的操作系统名称或包的运行环境名称 */
+        string platform;
+
+        /**
+         * @member major, minor, patch : 版本号
+         * @desc :
+         *  [可选]指定包的版本号，负数表示匹配能找到的最大版本号
+         *  major : 主版本号，表示向下不兼容的重大升级
+         *  minor : 副版本号，表示向下兼容的功能提升
+         *  patch : 补丁号，表示对问题的修复或漏洞的修补 */
+        int major = 0, minor = 0, patch = 0;
+
+        /**
+         * @member sections : 段
+         * @desc : [可选]使用数字开关指定的段 */
+        int sections = 0;
+
+    public:
+
+        /**
+         * @operator bool : 判定定位器是否有效
+         * @desc : 定位器的publisher或name为空则无效 */
+        operator bool()const;
+
+        /**
+         * @method Parse : 解析一个包定位器
+         * @desc : 从字符串解析一个包定位
+         * @param id : 包含包定位器的字符串
+         */
+        static PackageLocator Parse( const string& id );
+
+        /**
+         * @param uriPath : 是否转换成uri路径字符串,若转换成路径，则不包含版本号信息，因为版本号与路径的映射关系由空间引擎管理 */
+        string toString( bool uriPath = false )const;
+};
+
+/**
  * @struct srcdesc : 数据源描述符
  * @desc :
  *  数据源描述符能唯一确定一个数据源
@@ -240,13 +312,32 @@ class SpaceEngine {
         chainz<fulldesc> enumerateContents( const srcdesc& desc );
 
         /**
+         * @method enumeratePublisher : 枚举发布者
+         * @desc :
+         *  枚举所有已知的发布者
+         * @return chainz<string> : 所有发布者名称
+         */
+        chainz<string> enumeratePublishers();
+
+        /**
          * @method enumeratePackages : 枚举包
          * @desc :
          *  Alioth约定必须将包安装在root/pkg/中
          *  此方法用于简化枚举包的过程
+         * @param publisher : 包所属的发布者
          * @return chainz<string> : 所有的包名
          */
-        chainz<string> enumeratePackages();
+        chainz<string> enumeratePackages( const string& publisher );
+
+        /**
+         * @method enumerateVersions : 枚举版本号
+         * @desc :
+         *  枚举一个包已经安装的所有版本号
+         * @param publisher : 发布者
+         * @param package : 包名
+         * @return chainz<string> : 所有的版本号
+         */
+        chainz<string> enumerateVersions( const string& publisher, const string& package );
 
         /**
          * @method createDocument : 创建文档
