@@ -111,6 +111,22 @@ int BasicCompiler::execute() {
                 }
                 args.remove(i--);
             }
+        } else if( arg == "--arch" ) {
+            if( args.remove(i); i >= args.size() ) {
+                diagnostics["command-line"]("2",arg);
+                success = false;
+            } else {
+                spaceEngine->setArch(args[i]);
+                args.remove(i--);
+            }
+        } else if( arg == "--platform" ) {
+            if( args.remove(i); i >= args.size() ) {
+                diagnostics["command-line"]("2",arg);
+                success = false;
+            } else {
+                spaceEngine->setPlatform(args[i]);
+                args.remove(i--);
+            }
         } else if( arg == "--" ) {
             if( args.remove(i); i >= args.size() ) {
                 diagnostics["command-line"]("2",arg);
@@ -433,7 +449,14 @@ bool AliothCompiler::performSyntaticAnalysis() {
 
 bool AliothCompiler::performSemanticAnalysis() {
     auto semantic = SemanticContext( context, diagnostics );
-    return false; // [TODO]
+    if( !semantic.associateModules(target_modules) ) return false;
+    if( !semantic.validateDefinitionSemantics() ) return false;
+    if( !semantic.validateImplementationSemantics() ) return false;
+    return true;
+}
+
+bool AliothCompiler::generateMachineCodeUsingLLVM() {
+    return false;
 }
 
 bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {

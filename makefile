@@ -1,16 +1,16 @@
 SHELL = /bin/bash
 
 # Variables used for compiling sources
-INC = $(wildcard inc/*.hpp)
-SRC = $(wildcard src/*.cpp)
-OBJ = $(SRC:src/%.cpp=obj/%.o)
+INC =$(wildcard inc/*.hpp)
+SRC =$(wildcard src/*.cpp)
+OBJ =$(SRC:src/%.cpp=obj/%.o)
 CC = g++-8
-LLVMOOPT = # $(shell llvm-config --cxxflags)
-LLVMLOPT = # $(shell llvm-config --ldflags --system-libs --link-static --libs x86codegen)
-SIGCOOPT = $(shell pkg-config --cflags sigc++-2.0)
-SIGCLOPT = $(shell pkg-config --libs sigc++-2.0)
-OOPT = -Iinc -std=gnu++17 -g -c -D__ALIOTH_DEBUG__
-LOPT = -lpthread
+LLVMOOPT=$(shell llvm-config --cxxflags)
+LLVMLOPT=$(shell llvm-config --ldflags --system-libs --link-static --libs x86codegen)
+SIGCOOPT=$(shell pkg-config --cflags sigc++-2.0)
+SIGCLOPT=$(shell pkg-config --libs sigc++-2.0)
+OOPT = $(LLVMOOPT) -Iinc -std=gnu++17 -g -c -D__ALIOTH_DEBUG__
+LOPT = $(LLVMLOPT) -lpthread
 TARGET = bin/alioth
 
 # This target is used for test purpose only !

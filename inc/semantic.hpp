@@ -9,8 +9,13 @@ namespace alioth {
 /**
  * @struct module : 模块
  * @desc : 模块对应于Alioth模块的概念，收集了属于一个模块的所有定义和实现 */
-struct module : public signature {
+struct module : node {
     public:
+
+        /**
+         * @member sig : 签名 */
+        $signature sig;
+
         /**
          * @member defs : 定义 */
         definitions defs;
@@ -19,9 +24,12 @@ struct module : public signature {
          * @member impls : 实现 */
         implementations impls;
 
-        /**
-         * @member frgmnts : 片段 */
-        fragments frgmnts;
+    public:
+        virtual ~module() = default;
+        bool is( type )const override;
+
+        $module getModule()override;
+        CompilerContext& getCompilerContext()override;
 };
 
 /**

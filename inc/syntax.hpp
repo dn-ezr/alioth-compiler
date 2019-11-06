@@ -924,6 +924,8 @@ struct exprstmt : public statement {
 
     public:
         enum expr_t {
+            name_expr,
+            type_expr,
             constant, // constant value
 
             negative, // - expr
@@ -984,6 +986,9 @@ struct exprstmt : public statement {
             lctor, // [...]
             tctor, // <...>
             call, // expr(...=>...)
+            newexpr, // new type expr
+            delexpr, // delete expr
+            doexpr, // do expr
         };
     
     public:

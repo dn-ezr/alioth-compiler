@@ -133,7 +133,7 @@ struct PackageLocator {
 
         /**
          * @param uriPath : 是否转换成uri路径字符串,若转换成路径，则不包含版本号信息，因为版本号与路径的映射关系由空间引擎管理 */
-        string toString( bool uriPath = false )const;
+        string toString( bool uriPath = false, const string& suggest_arch = THIS_ARCH, const string& suggest_platform = THIS_PLATFORM )const;
 };
 
 /**
@@ -282,6 +282,14 @@ class SpaceEngine {
          * @desc : 用于交互模式的交互套接字 */
         $Socket msock;
 
+        /**
+         * @member arch : 架构 */
+        string arch;
+
+        /**
+         * @member platform : 平台 */
+        string platform;
+
     public:
 
         /**
@@ -301,6 +309,18 @@ class SpaceEngine {
          * @return bool : 映射是否成功
          */
         bool setMainSpaceMapping( int space, const string& mapping, const string& package = "" );
+
+        /**
+         * @method setArch : 设置架构
+         * @param ar : 架构信息
+         */
+        void setArch( const string& ar );
+
+        /**
+         * @method setPlatform : 设置平台
+         * @param pm : 平台信息
+         */
+        void setPlatform( const string& pm );
 
         /**
          * @method enumerateContents : 枚举内容物

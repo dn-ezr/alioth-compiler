@@ -362,13 +362,13 @@ PackageLocator PackageLocator::Parse( const string& str ) {
     return {};
 }
 
-string PackageLocator::toString( bool uriPath )const {
+string PackageLocator::toString( bool uriPath, const string& sarch, const string& splatform )const {
     string ret = publisher + (uriPath?"/":".") + name;
     
-    if( arch.empty() or arch == "%" ) ret += "-" + THIS_ARCH;
+    if( arch.empty() or arch == "%" ) ret += "-" + sarch;
     else ret += "-" + arch;
 
-    if( platform.empty() or platform == "%" ) ret += "-" + THIS_PLATFORM;
+    if( platform.empty() or platform == "%" ) ret += "-" + splatform;
     else ret += "-" + platform;
 
     if( uriPath ) return ret;
@@ -457,6 +457,8 @@ SpaceEngine::SpaceEngine() {
     mwork.mapping = Uri::FromString(default_work_path);
     mroot.desc.flags = ROOT;
     mroot.mapping = Uri::FromString(default_root_path);
+    arch = PackageLocator::THIS_ARCH;
+    platform = PackageLocator::THIS_PLATFORM;
 }
 
 bool SpaceEngine::setMainSpaceMapping( int space, const string& mapping, const string& package ) {
@@ -480,6 +482,14 @@ bool SpaceEngine::setMainSpaceMapping( int space, const string& mapping, const s
     }
 
     return true;
+}
+
+void SpaceEngine::setArch( const string& ar ) {
+    arch = ar;
+}
+
+void SpaceEngine::setPlatform( const string& pl ) {
+    platform = pl;
 }
 
 chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {
@@ -708,7 +718,7 @@ Uri SpaceEngine::getUri( const srcdesc& desc ) {
             auto loc = PackageLocator::Parse(desc.package);
             if( !loc ) throw runtime_error("SpaceEngine::getUri( const srdesc& desc ): invalid package locator.");
             uri = mroot.mapping;
-            uri.path += string("pkg") + dirdvs + loc.toString(true) + dirdvs;
+            uri.path += string("pkg") + dirdvs + loc.toString(true,arch,platform) + dirdvs;
             if( loc.major < 0 ) uri.path += "latest";
             else {
                 uri.path += to_string(loc.major) + ".";

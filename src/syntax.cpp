@@ -2322,6 +2322,7 @@ $dostmt SyntaxContext::constructDoStatement( $scope scope ) {
 $nameexpr SyntaxContext::constructNameExpression( $scope scope, bool absorb ) {
     $nameexpr ref = new nameexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::name_expr;
 
     enter();
     movi(1,0);
@@ -2397,6 +2398,7 @@ $nameexpr SyntaxContext::constructNameExpression( $scope scope, bool absorb ) {
 $typeexpr SyntaxContext::constructTypeExpression( $scope scope, bool absorb ) {
     $typeexpr ref = new typeexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::type_expr;
     agent<callable_type> call;
 
     enter();
@@ -2525,6 +2527,7 @@ $typeexpr SyntaxContext::constructTypeExpression( $scope scope, bool absorb ) {
 $constant SyntaxContext::constructConstantExpression( $scope scope ) {
     $constant ref = new constant;
     ref->setScope(scope);
+    ref->etype = exprstmt::constant;
 
     enter();
     movi(1,0);
@@ -2551,6 +2554,7 @@ $constant SyntaxContext::constructConstantExpression( $scope scope ) {
 $lctorexpr SyntaxContext::constructListConstructingExpression( $scope scope ) {
     $lctorexpr ref = new lctorexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::lctor;
 
     enter();
     movi(1,0);
@@ -2597,6 +2601,7 @@ $lctorexpr SyntaxContext::constructListConstructingExpression( $scope scope ) {
 $sctorexpr SyntaxContext::constructStructuralConstructingExpression( $scope scope ) {
     $sctorexpr ref = new sctorexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::sctor;
     token name;
 
     enter();
@@ -2663,6 +2668,7 @@ $sctorexpr SyntaxContext::constructStructuralConstructingExpression( $scope scop
 $tctorexpr SyntaxContext::constructTupleConstructingExpression( $scope scope ) {
     $tctorexpr ref = new tctorexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::tctor;
 
     enter();
     movi(1,0);
@@ -2702,6 +2708,7 @@ $tctorexpr SyntaxContext::constructTupleConstructingExpression( $scope scope ) {
 $lambdaexpr SyntaxContext::constructLambdaExpression( $scope scope ) {
     $lambdaexpr ref = new lambdaexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::lambda;
 
     enter();
     movi(1,0);
@@ -2745,6 +2752,7 @@ $lambdaexpr SyntaxContext::constructLambdaExpression( $scope scope ) {
 $newexpr SyntaxContext::constructNewExpression( $scope scope ) {
     $newexpr ref = new newexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::newexpr;
 
     enter();
     movi(1,0);
@@ -2803,6 +2811,7 @@ $newexpr SyntaxContext::constructNewExpression( $scope scope ) {
 $delexpr SyntaxContext::constructDeleteExpression( $scope scope ) {
     $delexpr ref = new delexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::delexpr;
 
     enter();
     movi(1,0);
@@ -2843,6 +2852,7 @@ $delexpr SyntaxContext::constructDeleteExpression( $scope scope ) {
 $doexpr SyntaxContext::constructDoExpression( $scope scope ) {
     $doexpr ref = new doexpr;
     ref->setScope(scope);
+    ref->etype = exprstmt::doexpr;
 
     enter();
     movi(1,0);

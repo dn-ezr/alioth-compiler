@@ -2,6 +2,7 @@
 #define __air_context__
 
 #include "air_type.hpp"
+#include "air_module.hpp"
 
 namespace alioth {
 
