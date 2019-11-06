@@ -1555,7 +1555,7 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
     return ref;
 }
 
-$exprstmt SyntaxContext::constructExpressionStatement( $scope scope ) {
+$exprstmt SyntaxContext::constructExpressionStatement( $scope scope, bool intuple ) {
     $exprstmt ref;
 
     enter();
@@ -1653,6 +1653,8 @@ $exprstmt SyntaxContext::constructExpressionStatement( $scope scope ) {
                 ref->setScope(scope);
                 ref = nr;
                 movi(6);
+            } else if( it->is(VT::O::GT) and intuple ) {
+                redu(-2, VN::EXPRSTMT);
             } else if( it->is(CT::INFIX) ) {
                 auto prev = prio(*(it-2));
                 if( prev and prev < prio(*it)) redu(-2,VN::EXPRSTMT);
@@ -2646,7 +2648,7 @@ $sctorexpr SyntaxContext::constructStructuralConstructingExpression( $scope scop
             if( it->is(VT::O::SC::C::S) ) {
                 redu(-3, VN::FINAL);
             } else if( it->is(VT::O::SC::COMMA) ) {
-                redu(-3, VN::MORE);
+                redu(3, VN::MORE);
             } else {
                 return diagnostics("21", VT::O::SC::C::S, *it), nullptr;
             } break;
@@ -2676,7 +2678,7 @@ $tctorexpr SyntaxContext::constructTupleConstructingExpression( $scope scope ) {
                 movi(3);
             } else if( it->is(VN::MORE) ) {
                 stay();
-            } else if( auto expr = constructExpressionStatement(scope); expr ) {
+            } else if( auto expr = constructExpressionStatement(scope, true); expr ) {
                 *ref << expr;
             } else {
                 return nullptr;

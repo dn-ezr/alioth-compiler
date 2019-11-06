@@ -365,10 +365,10 @@ PackageLocator PackageLocator::Parse( const string& str ) {
 string PackageLocator::toString( bool uriPath )const {
     string ret = publisher + (uriPath?"/":".") + name;
     
-    if( arch.empty() ) ret += "-" + THIS_ARCH;
+    if( arch.empty() or arch == "%" ) ret += "-" + THIS_ARCH;
     else ret += "-" + arch;
 
-    if( platform.empty() ) ret += "-" + THIS_PLATFORM;
+    if( platform.empty() or platform == "%" ) ret += "-" + THIS_PLATFORM;
     else ret += "-" + platform;
 
     if( uriPath ) return ret;

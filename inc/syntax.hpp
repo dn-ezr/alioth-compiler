@@ -1715,7 +1715,8 @@ class SyntaxContext {
 
         /** @param autowire : 是否正在扫描自动注入元素，自动注入元素由on结束定义，不要求指定数据类型,不接受初始化表达式 */
         $element constructElementStatement( $scope scope, bool autowire );
-        $exprstmt constructExpressionStatement( $scope scope );
+        /** @param intuple : 是否正在扫描元组内的表达式，这将会把>视为结束符 */
+        $exprstmt constructExpressionStatement( $scope scope, bool intuple = false );
         $branchstmt constructBranchStatement( $scope scope );
         $switchstmt constructSwitchStatement( $scope scope );
         $assumestmt constructAssumeStatement( $scope scope );
