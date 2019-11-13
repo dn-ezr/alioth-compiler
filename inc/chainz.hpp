@@ -3,7 +3,9 @@
 
 /**
  * 作者:ezr
- * 最后更新 : 2019/08/21
+ * 最后更新 : 2019/11/8
+ * 
+ * 添加initializer_list支持
  * 
  * 修正了remove方法传入负数,反向寻址时抛出溢出异常的bug
  * 修正了迭代器后缀自变运算依然提前变化的bug
@@ -25,6 +27,7 @@
 #include <functional>
 #include <cstring>
 #include <iterator>
+#include <initializer_list>
 
 #define OUT     //标记一个参数是输出参数
 #define OPT     //标记一个参数是可选的参数
@@ -157,6 +160,10 @@ class chainz {
         chainz():
         m_pool(nullptr),m_count(0) {
 
+        }
+
+        chainz(std::initializer_list<T> list ):chainz() {
+            for( auto e : list ) construct(-1, e );
         }
 
         /**

@@ -6,6 +6,8 @@
 
 namespace alioth {
 
+class SemanticContext;
+
 /**
  * @struct module : 模块
  * @desc : 模块对应于Alioth模块的概念，收集了属于一个模块的所有定义和实现 */
@@ -24,7 +26,12 @@ struct module : node {
          * @member impls : 实现 */
         implementations impls;
 
+        /**
+         * @member sctx : 语义上下文 */
+        SemanticContext& sctx;
+
     public:
+        module( SemanticContext& context );
         virtual ~module() = default;
         bool is( type )const override;
 
@@ -54,6 +61,11 @@ class SemanticContext {
          * @desc : 由抽象模块构成的森林 */
         map<$signature,$module> forest;
 
+
+        /**
+         * @member symbol_cache : 二进制符号缓冲 */
+        map<$node, string> symbol_cache;
+
     public:
 
         SemanticContext( CompilerContext& context, Diagnostics& diagnostics_repo );
@@ -73,6 +85,20 @@ class SemanticContext {
         bool associateModules( signatures );
 
         /**
+         * @method releaseModule : 释放模块
+         * @desc :
+         *  将模块信息释放, 若模块未找到则失败
+         */
+        bool releaseModule( $signature );
+
+        /**
+         * @method releaseModules : 批量释放模块
+         * @desc :
+         *  批量释放模块信息
+         */
+        void releaseModules( signatures );
+
+        /**
          * @method validateDefinitionSemantics : 检验定义语义
          * @desc :
          *  检查定义的语义正确性，过程中可能会修正一些语法结构
@@ -85,6 +111,42 @@ class SemanticContext {
          *  检验实现语义的正确性，过程中可能会产生新的语法结构
          */
         bool validateImplementationSemantics();
+
+    private:
+        bool validateModuleDefinition( $module );
+        bool validateClassDefinition( $classdef );
+        bool validateEnumDefinition( $enumdef );
+        bool validateAliasDefinition( $aliasdef );
+        bool validateAttributeDefinition( $attrdef );
+        bool validateMethodDefinition( $metdef );
+        bool validateOperatorDefinition( $opdef );
+
+        bool validateMethodImplementation( $metimpl );
+        bool validateOperatorImplementation( $opimpl );
+
+        bool validateBlockStatement( $blockstmt );
+        bool validateElementStatement( $element );
+        bool validateFlowControlStatement( $fctrlstmt );
+        bool validateExpressionStatement( $exprstmt );
+        bool validateBranchStatement( $branchstmt );
+        bool validateLoopStatement( $loopstmt );
+        bool validateAssumeStatement( $assumestmt );
+        bool validateDoStatement( $dostmt );
+
+    public:
+
+        /**
+         * @static-method GetBinarySymbol : 获取二进制符号
+         * @desc : 无论成功与否，被传入的语法结构应当已经被语义检查过程处理过 */
+        static string GetBinarySymbol( $node );
+
+        /**
+         * @static-method Reach : 尝试抵达名称表达式 */
+        static everything Reach( $nameexpr );
+        
+        /**
+         * @static-method GetDefinition : 获取实现对应的定义 */
+        static $definition GetDefinition( $implementation );
 };
 
 }

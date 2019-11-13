@@ -6,6 +6,7 @@
 #include "space.hpp"
 #include "diagnostic.hpp"
 #include "syntax.hpp"
+#include "semantic.hpp"
 #include "context.hpp"
 
 namespace alioth {
@@ -173,6 +174,11 @@ class AliothCompiler : public AbstractCompiler {
          * @member context : 编译器上下文
          * @desc : 用于集中管理编译资源的上下文环境 */
         CompilerContext context;
+
+        /**
+         * @member semantic : 语义上下文
+         * @desc : 用于集中管理语义信息 */
+        SemanticContext semantic;
 
         /**
          * @member full_interactive : 是否开启全交互模式

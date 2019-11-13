@@ -337,6 +337,27 @@ struct opprototype : public callable {
  *  此结构应当被CompilerContext管理
  */
 struct signature : public node {
+
+    public:
+        /**
+         * @struct record : 语法树记录
+         */
+        struct record {
+            enum status_t {
+                failed = -1,
+                unloaded,
+                loaded,
+            };
+
+            /** @member status : 语法树状态 */
+            status_t status = unloaded;
+
+            /** @member ds : 诊断信息 */
+            Diagnostics ds = {};
+            
+            /** @member fg : 语法树 */ 
+            $fragment fg = nullptr;
+        };
     
     public:
         /**
@@ -356,12 +377,8 @@ struct signature : public node {
         /**
          * @member docs : 文档集
          * @desc : 此容器用于方便编译器类记录模块的源码来源不被语法分析器负责 
-         *  此容器中键和值都很重要，键用作编译器上下文管理文档的唯一句柄，值作为上下文管理片段的唯一句柄 
-         *  tuple<int,$fragment,Diagnostics>:
-         *      语法树状态 --- int: 0 unloaded, 1 loaded, -1 failed
-         *      语法树 --- $fragment 
-         *      诊断信息 --- Diagnostics */
-        map<fulldesc,tuple<int,$fragment,Diagnostics>> docs;
+         *  此容器中键和值都很重要，键用作编译器上下文管理文档的唯一句柄，值作为上下文管理片段的唯一句柄 */
+        map<fulldesc,record> docs;
 
         /**
          * @member space : 空间
@@ -441,8 +458,13 @@ struct depdesc : public node {
     public:
         virtual ~depdesc() = default;
         bool is( type )const override;
+
+        /**
+         * @method toJson : 转换成json格式存储
+         * @desc :
+         *  此过程会剔除主空间信息 */
         json toJson()const;
-        static $depdesc fromJson( const json& object );
+        static $depdesc fromJson( const json& object, srcdesc space );
         Uri getDocUri() override;
 };
 
@@ -869,13 +891,9 @@ struct blockstmt : public statement, public statements {
  * @desc :
  *  元素语句用于创建一个元素绑定一个即将创建的对象
  *  元素语句使用name属性表示元素名称 */
-struct element : public statement {
+struct element : public statement, public eprototype {
 
     public:
-
-        /**
-         * @member proto : 元素原型 */
-        $eprototype proto;
 
         /**
          * @member init : 初始化表达式

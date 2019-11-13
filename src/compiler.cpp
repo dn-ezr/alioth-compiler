@@ -327,7 +327,7 @@ BasicCompiler::~BasicCompiler() {
 }
 
 AliothCompiler::AliothCompiler( AbstractCompiler& basic, CompilingTarget compilingTarget ):
-AbstractCompiler(move(basic)),target(compilingTarget),context(*spaceEngine,diagnostics) {
+AbstractCompiler(move(basic)),target(compilingTarget),context(*spaceEngine,diagnostics),semantic(context,diagnostics) {
 
 }
 
@@ -388,7 +388,7 @@ int AliothCompiler::execute_full_interactive() {
                 
                 success = success and detectInvolvedModules();
                 success = success and performSyntaticAnalysis();
-                //[TODO] success = success and performSemanticAnalysis();
+                success = success and performSemanticAnalysis();
                 
                 auto info = diagnosticEngine->printToJson(diagnostics);
                 msock.respondDiagnostics(package->seq, info);
@@ -397,7 +397,8 @@ int AliothCompiler::execute_full_interactive() {
                 auto params = request->workspace();
 
                 spaceEngine->setMainSpaceMapping(WORK,params->uri);
-                context.clearSpace({flags:MAIN});
+                semantic.releaseModules(context.getModules({flags:WORK}));
+                context.clearSpace({flags:WORK});
                 context.loadModules({flags:WORK});
 
                 msock.respondSuccess(package->seq, WORKSPACE);
@@ -448,7 +449,6 @@ bool AliothCompiler::performSyntaticAnalysis() {
 }
 
 bool AliothCompiler::performSemanticAnalysis() {
-    auto semantic = SemanticContext( context, diagnostics );
     if( !semantic.associateModules(target_modules) ) return false;
     if( !semantic.validateDefinitionSemantics() ) return false;
     if( !semantic.validateImplementationSemantics() ) return false;
@@ -462,12 +462,12 @@ bool AliothCompiler::generateMachineCodeUsingLLVM() {
 bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
     bool success = true;
     for( auto& [doc,_] : sig->docs ) {
-        if( get<0>(_) != 0 ) {
-            diagnostics += get<2>(_);
-            continue;
+        if( _.status != _.unloaded ) {
+            diagnostics += _.ds; continue;
         }
         Diagnostics tempd;
         tempd[spaceEngine->getUri(doc)];
+        semantic.releaseModule(sig); // 若模块的语法有所改动，则模块的语义被卸载
 
         auto is = spaceEngine->openDocumentForRead( doc );
         if( !is ) {

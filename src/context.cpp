@@ -214,7 +214,7 @@ bool CompilerContext::syncModules( srcdesc space ) {
     /** 若源码发生任何变化，将变化同步，填写签名信息之后，写入缓冲配置文件。 */
     bool success = true;
     if( different ) {
-        cache_map->clear();
+        //cache_map->clear();
 
         for( const auto& desc : created + modified ) {
             auto src = isalioth(desc.name);
@@ -272,11 +272,9 @@ fulldesc CompilerContext::loadDocument( fulldesc doc, bool forceload ) {
     auto is = spaceEngine.openDocumentForRead( doc );
     if( !is ) {
         if( module ) module->docs.erase(doc);
-        if( src ) {
-            diagnostics("15",spaceEngine.getUri(doc)); 
-            return srcdesc::error;
-        }
+        if( src ) return diagnostics("15",spaceEngine.getUri(doc)), srcdesc::error; 
     }
+    /** 分析源码 */
     auto lcontext = LexicalContext( *is, true );
     auto tokens = lcontext.perform();
     auto scontext = SyntaxContext(tokens, diagnostics[spaceEngine.getUri(doc)]);
@@ -285,13 +283,18 @@ fulldesc CompilerContext::loadDocument( fulldesc doc, bool forceload ) {
         if( module ) module->docs.erase(doc);
         return srcdesc::error;
     }
+    /** 修正文档描述符 */
     for( auto dep : sig->deps ) dep->doc = doc;
     if( !module ) module = getModule( sig->name, doc, true );
     sig->space.flags = SpaceEngine::PeekMain(doc.flags);
     sig->space.package = doc.package;
-    module->combine(sig);
+    /** 提前清理可能重复的依赖项 */
+    for( int i = 0; i < module->deps.size(); i++ )
+        if( module->deps[i]->doc == doc ) module->deps.remove(i--);
+    /** 合并签名 */
+    if( !module->combine(sig) ) return diagnostics("78", sig->entry), srcdesc::error;
     module->context = this;
-    module->docs[doc] = {0,nullptr,{}};
+    module->docs[doc] = {};
     return doc;
 }
 
@@ -310,9 +313,9 @@ bool CompilerContext::registerFragment( srcdesc doc, $fragment fg ) {
     auto mod = getModule(doc);
     if( !mod or !mod->docs.count(doc) ) return false;
     auto& reg = mod->docs[doc];
-    get<0>(reg) = 1;
-    get<1>(reg) = fg;
-    get<2>(reg).clear();
+    reg.status = reg.loaded;
+    reg.fg = fg;
+    reg.ds.clear();
     fg->doc = doc;
     fg->context = this;
     return true;
@@ -322,18 +325,18 @@ bool CompilerContext::registerFragmentFailure( srcdesc doc, const Diagnostics& i
     auto mod = getModule(doc);
     if( !mod or !mod->docs.count(doc) ) return false;
     auto& reg = mod->docs[doc];
-    get<0>(reg) = -1;
-    get<1>(reg) = nullptr;
-    get<2>(reg) = info;
+    reg.status = reg.failed;
+    reg.fg = nullptr;
+    reg.ds = info;
     return true;
 }
 
-tuple<int,$fragment,Diagnostics> CompilerContext::getFragment( srcdesc doc ) {
+signature::record CompilerContext::getFragment( srcdesc doc ) {
     auto mod = getModule(doc);
-    if( !mod ) return {0,nullptr,{}};
+    if( !mod ) return {};
     if( auto it = mod->docs.find(doc); it != mod->docs.end() ) 
         return it->second;
-    return {0,nullptr,{}};
+    return {};
 }
 
 }

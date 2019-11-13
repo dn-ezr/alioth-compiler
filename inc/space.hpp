@@ -146,7 +146,7 @@ struct srcdesc {
     /**
      * @member flags : 标志位
      * @desc : 标志用于抽象描述数据源的空间定位 */
-    int flags;
+    int flags = 0;
 
     /**
      * @member name : 数据源名称

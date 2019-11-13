@@ -20,19 +20,7 @@ token::token(const string& str):token(VT::L::LABEL) {
 }
 
 bool token::operator == ( const token& another ) const {
-    if( id != another.id ) return false;
-    if( isvt(id) ) switch(id) {
-        case VT::R::ERR: 
-            return false;
-        case VT::L::CHAR:case VT::L::LABEL:case VT::L::STRING:case VT::L::I::B:case VT::L::I::H:case VT::L::I::N:case VT::L::I::O:
-            return tx == another.tx;
-        default:
-            return true;
-    } else if( isvn(id) ) {
-        return true;
-    } else {
-        return false;
-    }
+    return (string)*this == (string)another;
 }
 
 bool token::operator != ( const token& another ) const {

@@ -1,0 +1,68 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "title": "Schema of diagnostics configuration file for the Alioth compiler",
+    "description": "This schema describes how you can organize informations for the diagnostic engine",
+    "type" : "object",
+    "properties": {
+        "format" : {
+            "type" : "string",
+            "title": "Print format",
+            "description": 
+                "Describes how the diagnostics informations can be organized when outputing\nvariables:\n\t%c : column number\n\t%C : column number at the end of the code involved\n\t%d : date formated as `YYYY/MM/DD`\n\t%E : error code\n\t%i : diagnostics informaton\n\t%l : line number\n\t%L : line number at the end of the code involved\n\t%p : prefix information, generally, it is a path.\n\t%s : severity in string\n\t%S : severity in number\n\t%t : time formated as `hh:mm:ss`\n\t%T : timestamp in number"
+        }, "default-language" : {
+            "type" : "string",
+            "title": "Default language name",
+            "description": "Define the default language to print the diagnostics"
+        }, "languages" : {
+            "type" : "object",
+            "title": "Repository for languages",
+            "description": "All languages are defined here, the key to each definition become the language name",
+            "additionalProperties": {
+                "title": "Language definition",
+                "description": "Define a language for diagnostic engine",
+                "properties": {
+                    "severities" : {
+                        "type" : "array",
+                        "items": {
+                            "type" : "string"
+                        },
+                        "title": "Define severity strings",
+                        "description": "Define the severity strings, these strings will be refered by the 'format' via the variable '%s'\nThere must be four items in this array each describes the corresponding severity.\n\t0: Error\n\t1: Warning\n\t2: Information\n\t3: Hint"
+                    }, "templates" : {
+                        "type" : "object",
+                        "title": "Diagnostic templates",
+                        "description": "Define diagnostic templates, tells compiler how to organize informations for each diagnostics, the key to each definition become the template id",
+                        "additionalProperties": {
+                            "title": "Diagnostic template",
+                            "description": "Define a template tells diagnostic engine how to organize informations given by the compiler",
+                            "type" :"object",
+                            "properties": {
+                                "sev" : {
+                                    "title": "Severity",
+                                    "description": "describe the severity of this kind of diagnostics"
+                                }, "beg" : {
+                                    "title" : "Begin",
+                                    "description": "Use one diagnostic argument to describe the begin position in document or not.\n\tn: No position\n\tb<n>: Use the begining position of one argument, 'n' means the index of that argument\n\te<n>: Use the ending position of one argument",
+                                    "type" : "string",
+                                    "pattern": "n|((b|e)\\d)"
+                                }, "end" : {
+                                    "title" : "End",
+                                    "description": "Use one diagnostic argument to describe the end position in document or not.\n\tn: No position\n\tb<n>: Use the begining position of one argument, 'n' means the index of that argument\n\te<n>: Use the ending position of one argument",
+                                    "type" : "string",
+                                    "pattern": "n|((b|e)\\d)"
+                                }, "msg" : {
+                                    "title": "Message",
+                                    "description": "define the diagnostics message when printing this diagnostic.\n\tDiagnostic Arguments can be refered: %n\n\twhere 'n' means the index of the argument, the amount of available diagnostic argument depends on the diagnostic template id.\n\t You can add color specification between the placeholder and the index.\n\tr : red\n\tR : red and blob\n\tg : green\n\tG : green and blob\n\tb : blue\n\tB : blue and blob\n\ty : yellow\n\tY : yellow and blob\n\tp : purple\n\tP : purple and blob\n\tc : cyan\n\tC : cyan and blob",
+                                    "type" : "string"
+                                }
+                            },
+                            "required": ["sev","beg","end","msg"]
+                        }
+                    }
+                },
+                "required": ["templates","severities"]
+            }
+        }
+    },
+    "required": ["format","default-language","languages"]
+}

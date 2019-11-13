@@ -46,7 +46,6 @@ CompilerContext& signature::getCompilerContext() {
 bool signature::is( type t )const {
     return t == SIGNATURE;
 }
-
 json signature::toJson() const {
     json obj = json::object;
     obj["name"] = name;
@@ -62,7 +61,6 @@ json signature::toJson() const {
     }
     return obj;
 }
-
 $signature signature::fromJson( const json& object, srcdesc space ) {
     if( !object.is(json::object) ) return nullptr;
     $signature sig = new signature;
@@ -77,7 +75,7 @@ $signature signature::fromJson( const json& object, srcdesc space ) {
     }
     if( object.count("deps",json::array) ) 
         for( auto& dep : object["deps"] ) {
-            auto desc = depdesc::fromJson(dep);
+            auto desc = depdesc::fromJson(dep, space);
             if( !desc ) continue;
             desc->setScope(sig);
             sig->deps << desc;
@@ -88,13 +86,15 @@ $signature signature::fromJson( const json& object, srcdesc space ) {
             if( !d ) continue;
             d.flags |= space.flags;
             d.package = space.package;
-            sig->docs[d] = {0,nullptr,{}};
+            sig->docs[d] = {};
         }
     return sig;
 }
 
 bool signature::combine( $signature an ) {
     if( !an or an->name != name or an->space != space ) return false;
+    if( entry and an->entry and entry != an->entry ) return false;
+    if( an->entry ) entry = an->entry;
     for( auto[k,v] : an->docs ) docs[k] = v;
     for( auto dep : an->deps ) {
         dep->setScope(nullptr);
@@ -113,19 +113,23 @@ json depdesc::toJson()const {
     dep["name"] = name.tx;
     dep["from"] = get<1>(from.extractContent());
     dep["alias"] = alias.tx;
-    dep["doc"] = doc.toJson();
+    auto d = doc;
+    d.flags = SpaceEngine::HideMain(d.flags);
+    dep["doc"] = d.toJson();
     return dep;
 }
 
-$depdesc depdesc::fromJson( const json& object ) {
+$depdesc depdesc::fromJson( const json& object, srcdesc space ) {
     $depdesc desc = new depdesc;
     if( !object.is(json::object) ) return nullptr;
     
     if( object.count("name",json::string) ) desc->name = (string)object["name"];
     else return nullptr;
 
-    if( object.count("doc",json::object) ) desc->doc.fromJson(object["doc"]);
+    if( object.count("doc",json::object) ) desc->doc = srcdesc::fromJson(object["doc"]);
     else return nullptr;
+    desc->doc.flags |= space.flags;
+    desc->doc.package = space.package;
 
     if( object.count("alias",json::string) ) {
         desc->alias = (string)object["alias"];
@@ -1463,8 +1467,6 @@ $blockstmt SyntaxContext::constructBlockStatement( $scope scope ) {
 $element SyntaxContext::constructElementStatement( $scope scope, bool autowire ) {
     $element ref = new element;
     ref->setScope(scope);
-    ref->proto = new eprototype;
-    ref->proto->setScope(scope);
 
     enter();
     movi(1,0);
@@ -1472,11 +1474,11 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
         case 1:
             if( it->is(CT::ELETYPE,VT::VAR) ) {
                 switch( it->id ) {
-                    case VT::VAR: ref->proto->etype = eprototype::var; break;
-                    case VT::OBJ: ref->proto->etype = eprototype::obj; break;
-                    case VT::PTR: ref->proto->etype = eprototype::ptr; break;
-                    case VT::REF: ref->proto->etype = eprototype::ref; break;
-                    case VT::REL: ref->proto->etype = eprototype::rel; break;
+                    case VT::VAR: ref->etype = eprototype::var; break;
+                    case VT::OBJ: ref->etype = eprototype::obj; break;
+                    case VT::PTR: ref->etype = eprototype::ptr; break;
+                    case VT::REF: ref->etype = eprototype::ref; break;
+                    case VT::REL: ref->etype = eprototype::rel; break;
                 }
                 movi(2);
             } else {
@@ -1484,8 +1486,8 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
             } break;
         case 2:
             if( it->is(VT::CONST) ) {
-                if( ref->proto->cons ) return diagnostics("27", *it), nullptr;
-                ref->proto->cons = *it;
+                if( ref->cons ) return diagnostics("27", *it), nullptr;
+                ref->cons = *it;
                 stay();
             } else if( it->is(VT::L::LABEL) ) {
                 ref->name = *it;
@@ -1497,7 +1499,7 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
             if( it->is(VT::O::ASSIGN) ) {
                 movi(4);
             } else if( it->is(VT::O::SC::SEMI) ) {
-                if( ref->proto->dtype and !ref->proto->dtype->is_type(UnknownType) )
+                if( ref->dtype and !ref->dtype->is_type(UnknownType) )
                     redu(-3, VN::ELEMENTSTMT);
                 else 
                     return diagnostics("31", *it), nullptr;
@@ -1507,12 +1509,12 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
                 if( autowire ) return diagnostics("71", *it), nullptr;
                 stay();
             } else if( it->is(VT::O::SC::O::L) ) {
-                if( ref->proto->dtype ) redu(-3, VN::ELEMENTSTMT);
+                if( ref->dtype ) redu(-3, VN::ELEMENTSTMT);
                 if( autowire ) return diagnostics("70", *it), nullptr;
                 movi(5);
-            } else if( !ref->proto->dtype ) {
-                ref->proto->dtype = constructTypeExpression(scope,true);
-                if( !ref->proto->dtype ) return nullptr;
+            } else if( !ref->dtype ) {
+                ref->dtype = constructTypeExpression(scope,true);
+                if( !ref->dtype ) return nullptr;
             } else {
                 if( autowire ) return diagnostics("21", VT::O::SC::COLON, *it), nullptr;
                 else return diagnostics("21", VT::O::SC::SEMI, *it), nullptr;
@@ -1550,7 +1552,7 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
             return internal_error, nullptr;
     }
 
-    ref->proto->phrase = *it;
+    ref->phrase = *it;
     ref->phrase = *it;
     return ref;
 }

@@ -202,7 +202,7 @@ class CompilerContext {
          * @param doc : 文档描述符
          * @return $fragment : 片段
          */
-        tuple<int,$fragment,Diagnostics> getFragment( srcdesc doc );
+        signature::record getFragment( srcdesc doc );
 };
 
 }
