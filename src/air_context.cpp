@@ -59,7 +59,7 @@ AirContext::~AirContext() {
 }
 
 bool AirContext::operator()( $module semantic, ostream& os ) {
-    auto module = translateModule(semantic);
+    auto success = translateModule(semantic);
 
     string source_names;
     auto cctx = semantic->getCompilerContext();
@@ -68,36 +68,101 @@ bool AirContext::operator()( $module semantic, ostream& os ) {
         source_names += (string)space.getUri(doc) + "; ";
     module->setSourceFileName( source_names );
 
-    bool success = true;
     string error;
     auto errrso = llvm::raw_string_ostream(error);
     module->setTargetTriple(targetTriple);
     module->setDataLayout(targetMachine->createDataLayout());
-    for( auto& fun : module->getFunctionList() ) {
+    for( auto& fun : module->getFunctionList() )
         if( error.clear(); llvm::verifyFunction(fun, &errrso) )
             diagnostics[semantic->sig->name]("81", error), success = false;
-    }
     if( error.clear(); llvm::verifyModule(*module, &errrso) )
         diagnostics[semantic->sig->name]("81", error), success = false;
     if( !success ) return false;
 
+    llvm::legacy::PassManager pass;
     auto ros = llvm::raw_os_ostream(os);
     auto rpos = llvm::buffer_ostream(ros);
-    llvm::legacy::PassManager pass;
     targetMachine->addPassesToEmitFile(pass, rpos, nullptr, llvm::TargetMachine::CGFT_ObjectFile );
     pass.run(*module);
 
-    delete module;
     return true;
 }
 
-llvm::Module* AirContext::translateModule( $module semantic ) {
-    auto module = new llvm::Module((string)semantic->sig->name, *this);
+bool AirContext::translateModule( $module semantic ) {
+    module = llvm::make_unique<llvm::Module>((string)semantic->sig->name, *this);
 
+    bool success = true;
+    for( auto def : semantic->defs )
+        success = translateDefinition(def) and success;
+    if( success ) for( auto impl : semantic->impls )
+        success = translateImplementation(impl) and success;
     
+    if( semantic->sig->entry ) {
+        success = generateStartFunction() and success;
+    }
 
-    return module;
+    return success;
 }
+
+bool AirContext::translateDefinition( $definition def ) {
+    if( !def ) return false;
+    else if( auto d = ($classdef)def; d ) return translateClassDefinition(d);
+    else if( auto d = ($enumdef)def; d ) return translateEnumDefinition(d);
+    else if( auto d = ($metdef)def; d ) return translateMethodDefinition(d);
+    else if( auto d = ($opdef)def; d ) return translateOperatorDefinition(d);
+    else return true;
+}
+
+bool AirContext::translateImplementation( $implementation impl ) {
+    if( !impl ) return false;
+    else if( auto i = ($metimpl)impl; i ) return translateMethodImplementation(i);
+    else if( auto i = ($opimpl)impl; i ) return translateOperatorImplementation(i);
+    else return false;
+}
+
+bool AirContext::translateClassDefinition( $classdef ) {
+    bool success = true;
+    
+    return success;
+}
+
+bool AirContext::translateEnumDefinition( $enumdef ) {
+    bool success = true;
+    
+    return success;
+}
+
+bool AirContext::translateMethodDefinition( $metdef ) {
+    bool success = true;
+    
+    return success;
+}
+
+bool AirContext::translateOperatorDefinition( $opdef ) {
+    bool success = true;
+    
+    return success;
+}
+
+
+bool AirContext::translateMethodImplementation( $metimpl ) {
+    bool success = true;
+    
+    return success;
+}
+
+bool AirContext::translateOperatorImplementation( $opimpl ) {
+    bool success = true;
+    
+    return success;
+}
+
+bool AirContext::generateStartFunction() {
+    bool success = true;
+    
+    return success;
+}
+
 
 }
 #endif
