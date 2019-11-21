@@ -99,6 +99,13 @@ class SemanticContext {
         void releaseModules( signatures );
 
         /**
+         * @method getModule : 获取模块
+         * @desc :
+         *  根据模块签名获取模块
+         */
+        $module getModule( $signature );
+
+        /**
          * @method validateDefinitionSemantics : 检验定义语义
          * @desc :
          *  检查定义的语义正确性，过程中可能会修正一些语法结构
@@ -141,12 +148,26 @@ class SemanticContext {
         static string GetBinarySymbol( $node );
 
         /**
-         * @static-method Reach : 尝试抵达名称表达式 */
-        static everything Reach( $nameexpr );
+         * @static-method Reach : 尝试抵达名称表达式
+         * @return tuple<everything,bool> : 查询结果，是否遭遇错误 */
+        static tuple<everything,bool> Reach( $nameexpr );
         
         /**
          * @static-method GetDefinition : 获取实现对应的定义 */
         static $definition GetDefinition( $implementation );
+
+        /**
+         * @method CanBeInstanced : 是否可实例
+         * @desc :
+         *  检查类定义是否可被实例化
+         *  抽象类的所有方法都被实现才能实例化
+         *  模板类的用例可以被实例化
+         *  平坦类可以被实例化
+         * 
+         *  此过程辅助语义检查，却不依赖于语义检查结果
+         *  也即，此方法仅以简单的规则运行，不过多考虑实际因素
+         */
+        static bool CanBeInstanced( $classdef );
 };
 
 }

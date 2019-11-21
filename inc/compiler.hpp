@@ -246,11 +246,11 @@ class AliothCompiler : public AbstractCompiler {
         bool performSemanticAnalysis();
 
         /**
-         * @method generateMachineCodeUsingLLVM : 使用LLVM产生机器码
+         * @method generateTargetFile : 产生目标文件
          * @desc :
-         *  使用LLVM处理所有后桥任务，产生机器码
+         *  为已经分析过语义的模块产生目标文件
          */
-        bool generateMachineCodeUsingLLVM();
+        bool generateTargetFile();
 
         /**
          * @method performSyntaticAnalysis : 执行语法分析

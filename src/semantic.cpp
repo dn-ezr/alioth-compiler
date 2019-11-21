@@ -77,6 +77,12 @@ void SemanticContext::releaseModules( signatures sigs ) {
     for( auto sig : sigs ) releaseModule(sig);
 }
 
+$module SemanticContext::getModule( $signature sig ) {
+    auto it = forest.find(sig);
+    if( it == forest.end() ) return nullptr;
+    return it->second;
+}
+
 bool SemanticContext::validateDefinitionSemantics() {
     bool success = true;
     for( auto [sig,mod] : forest )
@@ -116,37 +122,85 @@ bool SemanticContext::validateModuleDefinition( $module mod ) {
         for( auto& prv : mod->defs ) {
             if( &def == &prv ) break;
             if( def->name != prv->name ) continue;
+            bool repeat = true;
 
             string dname = GetBinarySymbol(($node)def);
             string pname = GetBinarySymbol(($node)prv);
-
-            if( dname == pname ) {
-                string str;
-                for( auto [s,t] : forest ) str += (string)s->name + " ";
-                diagnostics[def->getDocUri()]("79", def->name, str)
-                [-1](prv->getDocUri(),"45", prv->name);
-                success = false;
-            }
+            if( def->is(node::METHODDEF) and prv->is(node::METHODDEF) ) repeat = dname == pname;
+            diagnostics[def->getDocUri()]("79", def->name, dname)
+            [-1](prv->getDocUri(),"45", prv->name);
+            success = false;
         }
     }
 
     return success;
 }
 
-bool SemanticContext::validateClassDefinition(  $classdef def ) {
-    return false;
+bool SemanticContext::validateClassDefinition(  $classdef cls ) {
+    bool success = true;
+
+    /** 检查基类是否可达 */
+    for( auto super : cls->supers ) {
+
+    }
+
+    /** 检查定义语义以及重复定义 */
+    for( auto& def : cls->contents ) {
+
+        if( auto cldef = ($classdef)def; cldef ) success = validateClassDefinition(cldef) and success;
+        else if( auto endef = ($enumdef)def; endef ) success =  validateEnumDefinition( endef ) and success;
+        else if( auto aldef = ($aliasdef)def; aldef ) success =  validateAliasDefinition( aldef ) and success;
+        else if( auto atdef = ($attrdef)def; atdef ) success =  validateAttributeDefinition( atdef ) and success;
+        else if( auto medef = ($metdef)def; medef ) success =  validateMethodDefinition( medef ) and success;
+        else if( auto opdef = ($opdef)def; opdef ) success =  validateOperatorDefinition( opdef ) and success;
+        else internal_error, success = false;
+
+        /** 检查重复定义 */
+        for( auto& prv : cls->contents ) {
+            if( &def == &prv ) break;
+            if( def->name != prv->name ) continue;
+            bool repeat = true;
+
+            string dname = GetBinarySymbol(($node)def);
+            string pname = GetBinarySymbol(($node)prv);
+            if( def->is(node::METHODDEF) and prv->is(node::METHODDEF) ) repeat = dname == pname;
+            diagnostics[def->getDocUri()]("79", def->name, dname)
+            [-1](prv->getDocUri(),"45", prv->name);
+            success = false;
+        }
+
+        /** 检查谓词 */
+    }
+
+    return success;
 }
 
 bool SemanticContext::validateEnumDefinition(  $enumdef def ) {
-    return false;
+    bool success = true;
+
+    /**
+     * Nothing to be done
+     */
+
+    return success;
 }
 
 bool SemanticContext::validateAliasDefinition(  $aliasdef def ) {
-    return false;
+
+    bool success = true;
+
+    auto [result,failure] = Reach(def->tagret);
+
+    success = result.size() and !failure;
+
+    return success;
 }
 
 bool SemanticContext::validateAttributeDefinition(  $attrdef def ) {
-    return false;
+    
+    bool success = true;
+
+    return success;
 }
 
 bool SemanticContext::validateMethodDefinition(  $metdef def ) {
@@ -220,6 +274,10 @@ string SemanticContext::GetBinarySymbol( $node s ) {
 
 $definition SemanticContext::GetDefinition( $implementation impl ) {
     return nullptr;
+}
+
+tuple<everything,bool> SemanticContext::Reach( $nameexpr name ) {
+    return {{},true};
 }
 
 }

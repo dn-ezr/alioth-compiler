@@ -758,7 +758,10 @@ $classdef SyntaxContext::constructClassDefinition( $scope scope ) {
                 ref->contents << padding;
                 stay();
             } else if( it->is(VT::L::I::N) ) {
-                premise.insert(stol(it->tx));
+                auto pi = stol(it->tx);
+                if( pi >= ref->preds.size() )
+                    return diagnostics("79", *it), nullptr;
+                premise.insert(pi);
                 movi(5);
             } else if( it->is(VN::LIST) ) {
                 stay();
@@ -788,7 +791,10 @@ $classdef SyntaxContext::constructClassDefinition( $scope scope ) {
             } break;
         case 6:
             if( it->is(VT::L::I::N) ) {
-                premise.insert(stol(it->tx));
+                auto pi = stol(it->tx);
+                if( pi >= ref->preds.size() )
+                    return diagnostics("79", *it), nullptr;
+                premise.insert(pi);
                 redu(1,VN::ITEM);
             } else {
                 return diagnostics("32", *it ), nullptr;

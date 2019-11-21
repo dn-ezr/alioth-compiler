@@ -7,6 +7,7 @@
 #include "syntax.hpp"
 #include "alioth.hpp"
 #include "space.hpp"
+#include "air.hpp"
 #include <iostream>
 #include <regex>
 
@@ -84,6 +85,7 @@ int BasicCompiler::execute() {
     bool diagnostic_engine_failed = false;
     spaceEngine = new SpaceEngine;
     diagnosticEngine = new DiagnosticEngine;
+    json variables = json::object;
 
     /** 扫描命令行参数，配置空间引擎 */
     for( int i = 0; i < args.size(); i++ ) {
@@ -117,6 +119,7 @@ int BasicCompiler::execute() {
                 success = false;
             } else {
                 spaceEngine->setArch(args[i]);
+                variables["arch"] = args[i];
                 args.remove(i--);
             }
         } else if( arg == "--platform" ) {
@@ -125,6 +128,7 @@ int BasicCompiler::execute() {
                 success = false;
             } else {
                 spaceEngine->setPlatform(args[i]);
+                variables["platform"] = args[i];
                 args.remove(i--);
             }
         } else if( arg == "--" ) {
@@ -246,6 +250,7 @@ int BasicCompiler::execute() {
                 target.name = args[i];
                 args.remove(i);
                 target.modules = args;
+                target.variables = variables;
                 switch( arg[0] ) {
                     case ':': target.indicator = Target::AUTO; break;
                     case 'x': target.indicator = Target::EXECUTABLE; break;
@@ -369,6 +374,7 @@ int AliothCompiler::execute() {
     if( !performSyntaticAnalysis() ) return 3;
     if( !performSemanticAnalysis() ) return 4;
     if( target.indicator == Target::VALIDATE ) return 0;
+    if( !generateTargetFile() ) return 5;
 
     return 0;
 }
@@ -455,8 +461,33 @@ bool AliothCompiler::performSemanticAnalysis() {
     return true;
 }
 
-bool AliothCompiler::generateMachineCodeUsingLLVM() {
-    return false;
+bool AliothCompiler::generateTargetFile() {
+    bool success = true;
+
+    auto arch = PackageLocator::THIS_ARCH;
+    auto platform = PackageLocator::THIS_PLATFORM;
+    if( target.variables.count("arch",json::string) ) arch = target.variables["arch"];
+    if( target.variables.count("platform",json::string) ) platform = target.variables["platform"];
+    auto air = AirContext(arch, platform, diagnostics);
+
+    signatures targets;
+    for( auto mname : target.modules )
+        targets += context.getModule(mname, {flags:WORK});
+
+    for( auto sig : targets ) {
+        auto mod = semantic.getModule(sig);
+        if( !mod ) {success = false; continue;}
+        auto fname = mod->sig->name.tx + ".o";
+        auto desc = srcdesc{
+            flags: WORK|OBJ|DOCUMENT,
+            name: fname
+        };
+        auto os = spaceEngine->openDocumentForWrite(desc);
+        if( !os ) diagnostics[spaceEngine->getUri(desc)]("80", fname);
+        else success  = air(mod, *os) and success;
+    }
+
+    return success;
 }
 
 bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
