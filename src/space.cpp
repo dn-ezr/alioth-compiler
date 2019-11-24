@@ -289,7 +289,7 @@ PackageLocator PackageLocator::Parse( const string& str ) {
                         if( sof == 0 ) state = -__LINE__; //[ERROR]: 非法的段名称
                         if( (pl.sections bitand sof) != 0 ) state = -__LINE__; //[ERROR]: 重复的段
                         if( state < 0 ) break;
-                        pl.sections bitor sof;
+                        pl.sections |= sof;
                         sec.clear();
                         if( *it == '\0' ) state = 0;
                     } break;
@@ -488,8 +488,16 @@ void SpaceEngine::setArch( const string& ar ) {
     arch = ar;
 }
 
+string SpaceEngine::getArch()const {
+    return arch;
+}
+
 void SpaceEngine::setPlatform( const string& pl ) {
     platform = pl;
+}
+
+string SpaceEngine::getPlatform()const {
+    return platform;
 }
 
 chainz<fulldesc> SpaceEngine::enumerateContents( const srcdesc& desc ) {

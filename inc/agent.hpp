@@ -103,7 +103,7 @@ class agent {
 
 using anything = agent<basic_thing>;
 using everything = chainz<anything>;
-
+const everything nothing = {};
 #define something(x) struct x;using $##x = agent<x>
 }
 #endif

@@ -317,10 +317,20 @@ class SpaceEngine {
         void setArch( const string& ar );
 
         /**
+         * @method getArch : 获取架构
+         */
+        string getArch()const;
+
+        /**
          * @method setPlatform : 设置平台
          * @param pm : 平台信息
          */
         void setPlatform( const string& pm );
+
+        /**
+         * @method getPlatform : 获取平台
+         */
+        string getPlatform()const;
 
         /**
          * @method enumerateContents : 枚举内容物

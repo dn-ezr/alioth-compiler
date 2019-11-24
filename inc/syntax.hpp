@@ -560,6 +560,11 @@ struct implementation : public node {
          * @member body : 方法实现体
          * @desc : 方法实现体是一个块语句 */
         $blockstmt body;
+
+        /**
+         * @member args : 参数
+         * @desc : 此容器承载实现的参数，由语义模块负责根据语法结构填写 */
+        elements args;
 };
 
 /**
@@ -863,6 +868,7 @@ struct opimpl : public implementation, public opprototype {
     public:
         virtual ~opimpl() = default;
         bool is( type )const override;
+        this_is_scope
 };
 
 /**
@@ -873,6 +879,7 @@ struct metimpl : public implementation, public metprototype {
     public:
         virtual ~metimpl() = default;
         bool is( type )const override;
+        this_is_scope
 };
 
 /**
@@ -884,6 +891,7 @@ struct blockstmt : public statement, public statements {
     public:
         virtual ~blockstmt() = default;
         bool is( type )const override;
+        this_is_scope
 };
 
 /**
@@ -1109,12 +1117,13 @@ struct loopstmt : public statement {
     public:
         virtual ~loopstmt() = default;
         bool is( type )const override;
+        this_is_scope
 };
 
 /**
  * @struct assumestmt : 假设语句
  * @desc :
- *  assume expr was prototype statement
+ *  assume expr is prototype statement
  *  otherwise statement
  */
 struct assumestmt : public statement {
@@ -1134,12 +1143,20 @@ struct assumestmt : public statement {
         $statement branch_true;
 
         /**
-         * @member branch_false : 假设不成立分支 */
+         * @member variable : 假设成立时，产生的新变量实体
+         * @member 应当由语义分析模块填写 */
+        $element variable;
+
+        /**
+         * @member branch_false : 假设不成立分支
+         * @desc : 假设不成立的分支所属的作用域是假设语句所属的作用域
+         * 如此便可以在名称搜索时，绕开没能成功推断类型的变量 */
         $statement branch_false;
 
     public:
         virtual ~assumestmt() = default;
         bool is( type )const override;
+        this_is_scope
 };
 
 /**
@@ -1205,10 +1222,6 @@ struct constant : public exprstmt {
 struct nameexpr : public exprstmt {
 
     public:
-        /**
-         * @member name : 名称
-         * @desc : 当前名称表达式所使用的名称 */
-        token name;
 
         /**
          * @member targs : 模板参数列表
@@ -1232,7 +1245,7 @@ struct nameexpr : public exprstmt {
 /**
  * @struct typeexpr : 类型表达式
  * @desc :
- *  类型表达式的前身就是Alioth 0.2.0中的typeuc，以前被称为名称用例
+ *  类型表达式的前身就是Alioth 0.2.0中的typeuc，以前被称为类型用例
  *  现在，我们认为类型表达式是表达式的一个子类型，它的特点是不总能被求值
  *  没错，有些情况下类型表达式也可能被求值，比如用于表示一个类的实体
  */
@@ -1352,9 +1365,15 @@ struct lambdaexpr : public exprstmt, public callable {
          * @member body : 执行体 */
         $blockstmt body;
 
+        /**
+         * @member args : 参数
+         * @desc : 由语义上下文根据语法结构生成，用于产生变量实体 */
+        elements args;
+
     public:
         virtual ~lambdaexpr() = default;
         bool is( type )const override;
+        this_is_scope
 };
 
 /**

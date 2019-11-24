@@ -34,10 +34,41 @@ struct module : node {
         module( SemanticContext& context );
         virtual ~module() = default;
         bool is( type )const override;
+        this_is_scope
 
         $module getModule()override;
         CompilerContext& getCompilerContext()override;
 };
+
+/** 描述符号检索时的选项 */
+using SearchOptions = int;
+namespace SearchOption {
+
+    /**
+     * 若当前作用域没有目标，就到当前作用域所在的作用域搜索
+     * 对实现来说，将会跳转到实现对应的定义所在的作用域 */
+    constexpr SearchOptions PARENT = 0x0001;
+
+    /**
+     * 若当前作用域没有目标，就跳转到当前类的基类去搜索目标 */
+    constexpr SearchOptions SUPER = 0x0002;
+
+    /**
+     * 若当前作用域没有目标，首先搜索基类，再搜索当前作用域的父作用域 */
+    constexpr SearchOptions ALL = PARENT | SUPER;
+
+    /**
+     * 若当前作用域是类，搜索结果接受内部定义 */
+    constexpr SearchOptions INNERS = 0x0100;
+
+    /**
+     * 若当前作用域是类，搜索结果接受成员 */
+    constexpr SearchOptions MEMBERS = 0x0200;
+
+    /**
+     * 若当前作用域是类，搜索结果接受任何 */
+    constexpr SearchOptions ANY = INNERS | MEMBERS;
+}
 
 /**
  * @struct SemanticContext : 语义上下文
@@ -65,6 +96,10 @@ class SemanticContext {
         /**
          * @member symbol_cache : 二进制符号缓冲 */
         map<$node, string> symbol_cache;
+
+        /**
+         * @member dep_cache : 依赖关系缓冲 */
+        map<$depdesc, $module> dep_cache;
 
     public:
 
@@ -104,6 +139,13 @@ class SemanticContext {
          *  根据模块签名获取模块
          */
         $module getModule( $signature );
+
+        /**
+         * @method getModule : 获取模块
+         * @desc :
+         *  根据依赖描述符定位模块
+         */
+        $module getModule( $depdesc );
 
         /**
          * @method validateDefinitionSemantics : 检验定义语义
@@ -149,8 +191,13 @@ class SemanticContext {
 
         /**
          * @static-method Reach : 尝试抵达名称表达式
-         * @return tuple<everything,bool> : 查询结果，是否遭遇错误 */
-        static tuple<everything,bool> Reach( $nameexpr );
+         * @param name : 要查询的名称
+         * @param opts : 搜索选项
+         * @param scope : 指定作用域，若此参数省略，则从名称表达式中提取作用域
+         * @param paddings : 挂起别名，当搜索别名时，为了避免循环别名造成无限递归，要将正在搜索的别名挂起
+         * @return everything : 查询结果，遭遇错误就返回空集
+         *  诊断信息会沿着语法结构上传到模块诊断容器 */
+        static everything Reach( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr, aliasdefs paddings = {} );
         
         /**
          * @static-method GetDefinition : 获取实现对应的定义 */

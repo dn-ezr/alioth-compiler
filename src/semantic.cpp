@@ -83,6 +83,49 @@ $module SemanticContext::getModule( $signature sig ) {
     return it->second;
 }
 
+$module SemanticContext::getModule( $depdesc dep ) {
+    auto it = dep_cache.find(dep);
+    if( it != dep_cache.end() ) return it->second;
+
+    auto sig = ($signature)dep->getScope();
+    if( !sig ) return internal_error, nullptr;
+
+    modules search;
+    for( auto [sig,mod] : forest ) if( sig->name == dep->name ) search << mod;
+
+    $module result;
+    auto from = (string)dep->from;
+    if( from == "." ) {
+        for( auto mod : search ) if( mod->sig->space == sig->space ) {
+            result = mod;
+            break;
+        }
+    } else if( from == "alioth" ) {
+        for( auto mod : search ) if( mod->sig->space.flags == ROOT ) {
+            result = mod;
+            break;
+        }
+    } else if( from.size() ) {
+        srcdesc desc = {flags:APKG,package:from};
+        for( auto mod : search ) if( mod->sig->space == desc ) {
+            result = mod;
+            break;
+        }
+    } else {
+        for( auto mod : search ) if( mod->sig->space == sig->space ) {
+            result = mod;
+            break;
+        }
+        if( !result ) for( auto mod : search ) if( mod->sig->space.flags == ROOT ) {
+            result = mod;
+            break;
+        }
+    }
+
+    if( !result ) return internal_error, nullptr;
+    return result;
+}
+
 bool SemanticContext::validateDefinitionSemantics() {
     bool success = true;
     for( auto [sig,mod] : forest )
@@ -141,7 +184,16 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
 
     /** 检查基类是否可达 */
     for( auto super : cls->supers ) {
-
+        auto res = Reach(super, SearchOption::ALL|SearchOption::ANY);
+        if( res.size() != 1 ) {
+            diagnostics[cls->getDocUri()]("82", super->phrase);
+            success = false;
+        }
+        auto def = ($classdef)res[0];
+        if( !def or !CanBeInstanced(def) ) {
+            diagnostics[cls->getDocUri()]("83", super->phrase);
+            success = false;
+        }
     }
 
     /** 检查定义语义以及重复定义 */
@@ -172,6 +224,8 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
         /** 检查谓词 */
     }
 
+    /** 检查循环包含 */
+
     return success;
 }
 
@@ -189,9 +243,9 @@ bool SemanticContext::validateAliasDefinition(  $aliasdef def ) {
 
     bool success = true;
 
-    auto [result,failure] = Reach(def->tagret);
+    auto result = Reach(def->tagret, SearchOption::ALL|SearchOption::ANY);
 
-    success = result.size() and !failure;
+    success = result.size();
 
     return success;
 }
@@ -276,8 +330,143 @@ $definition SemanticContext::GetDefinition( $implementation impl ) {
     return nullptr;
 }
 
-tuple<everything,bool> SemanticContext::Reach( $nameexpr name ) {
-    return {{},true};
+everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
+    if( !name ) return {};
+    if( !scope ) scope = name->getScope();
+    while( scope and (!scope->isscope() or scope->is(node::FRAGMENT)) ) scope = scope->getScope();
+    if( !scope or !scope->isscope() ) return {};
+
+    auto module = scope->getModule();
+    auto& semantic = module->sctx;
+    auto& diagnostics = semantic.diagnostics;
+    everything results;
+
+    if( auto sc = ($module)scope; sc ) {
+        /** 尝试匹配自身 */
+        if( name->name == sc->sig->name ) results << (anything)sc;
+
+        /** 搜索内部定义 */
+        for( auto def : sc->defs )
+            if( def->name == name->name ) results << (anything)def;
+
+        /** 搜索联合定义 */
+        for( auto dep : sc->sig->deps ) {
+            if( !dep->alias.is(VT::L::THIS) ) continue;
+            auto mod = semantic.getModule(dep);
+            if( !mod ) return internal_error, nothing;
+            for( auto def : mod->defs )
+                if( def->name == name->name ) results << (anything)def;
+        }
+        
+        /** 搜索依赖 */
+        for( auto dep : sc->sig->deps ) {
+            if( dep->alias.is(VT::L::THIS) ) continue;
+            bool found = false;
+            if( dep->alias and dep->alias == name->name ) found = true;
+            else if( dep->name == name->name ) found = true;
+            if( !found ) continue;
+            auto mod = semantic.getModule(dep);
+            if( !mod ) return internal_error, nothing;
+            results << (anything)mod;
+        }
+    } else if( auto sc = ($classdef)scope; sc ) {
+        /** 搜索类的内部成员和内部定义 */
+        for( auto def : sc->contents ) {
+            if( auto attr = ($attrdef)def; attr ) {
+                if( (opts & SearchOption::MEMBERS) == 0 ) continue;
+                if( attr->name == name->name ) results << (anything)attr;
+            } else { //[TODO] 考虑定义前提
+                if( (opts & SearchOption::INNERS) == 0 ) continue;
+                if( def->name == name->name ) results << (anything)def;
+            }
+        }
+    } else if( auto sc = ($implementation)scope; sc ) {
+        for( auto arg : sc->args ) {
+            if( arg->name == name->name )
+                results << (anything)arg;
+        }
+    } else if( auto sc = ($blockstmt)scope; sc ) {
+        for( auto stmt : *sc ) {
+            if( stmt->name == name->name )
+                results << (anything)stmt;
+        }
+    } else if( auto sc = ($loopstmt)scope; sc ) {
+        if( sc->it->name == name->name )
+            results << (anything)sc->it;
+    } else if( auto sc = ($assumestmt)scope; sc ) {
+        if( sc->variable->name == name->name )
+            results << (anything)sc->variable;
+    } else if( auto sc = ($lambdaexpr)scope; sc ) {
+        for( auto arg : sc->args ) {
+            if( arg->name == name->name )
+                results << (anything)arg;
+        }
+    } else {
+        return internal_error, nothing;
+    }
+
+    if( results.size() != 0 and name->next ) {
+        /** 处理作用域深入的情况 */
+        if( results.size() != 1 )
+            return diagnostics[name->getDocUri()]("88", name->name), nothing;
+        /** 处理目标并非作用域的情况 */
+        auto sc = ($node)results[0];
+        if( !sc or sc->isscope() )
+            return diagnostics[name->getDocUri()]("89", name->name), nothing;
+        return Reach( name->next, SearchOption::ANY, sc, paddings );
+    } else if( results.size() == 0 ) {
+        /** 处理当前作用域没有搜索到当前目标 */
+        if( auto sc = ($module)scope; sc ) {
+            //[Nothing to be done]
+        } if( auto sc = ($classdef)scope; sc ) {
+            /** 当前作用域没有目标，尝试搜索基类 */
+            if( opts & SearchOption::SUPER )
+                for( auto super : sc->supers ) {
+                    auto temp = Reach(super, SearchOption::ALL|SearchOption::ANY, super->getScope(), paddings );
+                    if( temp.size() != 1 ) continue; // 基类不唯一或不可达的错误在类语义检查中被报告
+                    auto def = ($classdef)temp[0];
+                    if( !def ) continue; // 基类不可达的错误在语义分析中报告
+                    results += Reach(name, SearchOption::SUPER|SearchOption::MEMBERS, def, paddings );
+                }
+            /** 若当前作用域没有目标，尝试搜索父作用域 */
+            if( opts & SearchOption::PARENT ) {
+                results += Reach(name, SearchOption::PARENT|SearchOption::INNERS, sc->getScope(), paddings);
+            }
+        } else if( auto sc = ($implementation)scope; sc ) {
+            if( auto def = GetDefinition(sc); def and (SearchOption::PARENT&opts) ) {
+                results += Reach(name, SearchOption::ANY|SearchOption::ALL, def, paddings);
+            }
+        } else if( opts & SearchOption::PARENT ) {
+            results += Reach(name, SearchOption::ALL|SearchOption::ANY, scope->getScope(), paddings );
+        } else {
+            //[Nothing to be done]
+        }
+    }
+
+    /** 处理别名，将搜索到的别名解析 */
+    for( auto i = 0; i < results.size(); i++ ) if( auto alias = ($aliasdef)results[i]; alias ) {
+
+        /** 处理循环引用的情况 */
+        for( auto padding : paddings ) if( padding == alias ) {
+            diagnostics[alias->getDocUri()]("87", alias->phrase);
+            return {};
+        }
+
+        /** 解析别名引用 */
+        auto res = Reach(alias->tagret, 
+            SearchOption::ALL|SearchOption::ANY, 
+            alias->getScope(), 
+            paddings+aliasdefs{alias} );
+        if( res.size() == 0 ) return {};
+        results += res;
+        results.remove(i--);
+    }
+
+    return results;
+}
+
+bool SemanticContext::CanBeInstanced( $classdef def ) {
+    return true;//[TODO]
 }
 
 }

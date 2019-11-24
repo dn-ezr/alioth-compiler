@@ -596,6 +596,23 @@ srcdesc AliothCompiler::calculateDependencySpace( $depdesc desc ) {
     } else if( from == "alioth" ) {
         return {flags:ROOT};
     } else if( from.size() ) {
+        auto loc = PackageLocator::Parse(desc->from);
+        if( loc ) {
+            if( loc.major<0 or loc.minor<0 or loc.patch<0 ) {
+                diagnostics[desc->getDocUri()]("84", desc->from);
+                return srcdesc::error;
+            }
+            if( loc.sections != 0 ) {
+                diagnostics[desc->getDocUri()]("86", desc->from);
+                return srcdesc::error;
+            }
+            auto arch = spaceEngine->getArch();
+            auto platform = spaceEngine->getPlatform();
+            desc->from.tx = loc.toString(false,arch,platform);
+        } else {
+            diagnostics[desc->getDocUri()]("85", desc->from);
+            return srcdesc::error;
+        }
         return {flags:APKG,package:from};
     } else if( context.getModule(desc->name, local_desc) ) {
         return local_desc;

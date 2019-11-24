@@ -1968,7 +1968,7 @@ $assumestmt SyntaxContext::constructAssumeStatement( $scope scope ) {
         case 8:
             if( it->is(CT::STATEMENT) ) {
                 redu(8, VN::ASSUMESTMT);
-            } else if( auto stmt = constructStatement(ref, true, false); stmt ) {
+            } else if( auto stmt = constructStatement(scope, true, false); stmt ) {
                 ref->branch_false = stmt;
             } else {
                 return nullptr;
