@@ -80,8 +80,8 @@ using modules = chainz<$module>;
 
 using $scope = node*;
 
-struct callable;
-struct callable_type;
+struct callable; using $callable = agent<callable>;
+struct callable_type; using $callable_type = agent<callable_type>;
 
 /**
  * @struct node : 节点
@@ -780,9 +780,14 @@ struct enumdef : public definition {
  * @desc :
  *  属性定义语法结构
  */
-struct attrdef : public definition, public eprototype {
+struct attrdef : public definition {
 
     public:
+
+        /**
+         * @member proto : 元素原型
+         * @desc : 成员的元素原型 */
+        $eprototype proto;
 
         /**
          * @member arr : 数组
@@ -1267,7 +1272,7 @@ struct typeexpr : public exprstmt {
          *  UnsolvableType : nullptr
          *  StructType : classdef
          *  EntityType : classdef
-         *  MethodTyped : mettype
+         *  CallableTyped : callable_type
          *  ConstraintedPointerType : typeexpr
          *  UnconstraintedPointerType : typeexpr
          *  NullPointerType : nullptr
@@ -1769,7 +1774,7 @@ class SyntaxContext {
         /** @param absorb : 是否吸收左尖括号为模板参数列表的开头符号 */
         $nameexpr constructNameExpression( $scope scope, bool absorb );
 
-        /** @param absorb : 用于表明是否已经处于可以吸收'<'的语境，此值可能由于class关键字的引导二改变 */
+        /** @param absorb : 用于表明是否已经处于可以吸收'<'的语境，此值可能由于class关键字的引导而改变 */
         $typeexpr constructTypeExpression( $scope scope, bool absorb );
         $constant constructConstantExpression( $scope scope );
         $lctorexpr constructListConstructingExpression( $scope scope );

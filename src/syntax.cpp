@@ -825,7 +825,7 @@ $classdef SyntaxContext::constructClassDefinition( $scope scope ) {
             } break;
         case 10:
             if( it->is(VT::L::LABEL) ) {
-                if( auto n = constructNameExpression(ref,true); n ) {
+                if( auto n = constructNameExpression(scope,true); n ) {
                     ref->supers << n;
                 } else {
                     return nullptr;
@@ -1005,6 +1005,8 @@ $enumdef SyntaxContext::constructEnumerateDefinition( $scope scope ) {
 $attrdef SyntaxContext::constructAttributeDefinition( $scope scope ) {
     $attrdef ref = new attrdef;
     ref->setScope(scope);
+    ref->proto = new eprototype;
+    ref->proto->setScope(scope);
 
     enter();
     movi(1,0);
@@ -1012,11 +1014,11 @@ $attrdef SyntaxContext::constructAttributeDefinition( $scope scope ) {
         case 1:
             if( it->is(CT::ELETYPE,VT::VAR) ) {
                 switch( it->id ) {
-                    case VT::VAR: ref->etype = eprototype::var; break;
-                    case VT::OBJ: ref->etype = eprototype::obj; break;
-                    case VT::PTR: ref->etype = eprototype::ptr; break;
-                    case VT::REF: ref->etype = eprototype::ref; break;
-                    case VT::REL: ref->etype = eprototype::rel; break;
+                    case VT::VAR: ref->proto->etype = eprototype::var; break;
+                    case VT::OBJ: ref->proto->etype = eprototype::obj; break;
+                    case VT::PTR: ref->proto->etype = eprototype::ptr; break;
+                    case VT::REF: ref->proto->etype = eprototype::ref; break;
+                    case VT::REL: ref->proto->etype = eprototype::rel; break;
                     default: return internal_error, nullptr;
                 }
                 movi(2);
@@ -1033,8 +1035,8 @@ $attrdef SyntaxContext::constructAttributeDefinition( $scope scope ) {
                 else ref->meta = *it;
                 stay();
             } else if( it->is(VT::CONST) ) {
-                if( ref->cons ) return diagnostics("27", *it), nullptr;
-                else ref->cons = *it;
+                if( ref->proto->cons ) return diagnostics("27", *it), nullptr;
+                else ref->proto->cons = *it;
                 stay();
             } else if( it->is(VT::L::LABEL) ) {
                 ref->name = *it;
@@ -1056,7 +1058,7 @@ $attrdef SyntaxContext::constructAttributeDefinition( $scope scope ) {
             } else if( auto t = constructTypeExpression(scope, true); t ) {
                 if( t->is_type(UnknownType) )
                     return diagnostics("31", *it), nullptr;
-                ref->dtype = t;
+                ref->proto->dtype = t;
             } else {
                 return nullptr;
             } break;
@@ -1077,6 +1079,7 @@ $attrdef SyntaxContext::constructAttributeDefinition( $scope scope ) {
             return internal_error, nullptr;
     }
 
+    ref->proto->phrase = *it;
     ref->phrase = *it;
     return ref;
 }
@@ -3044,8 +3047,9 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens&
                 cur_arg->etype = eprototype::var;
                 movi(111,0);
             } else if( it->is(VN::ITEM) ) {
-                if( cur_arg->etype == eprototype::var and cur_arg->dtype->is_type(UnknownType) and !(*cur_expr) )
-                    return diagnostics("31", *it), false;
+                //[NOTE]2019/11/26 允许参数的原型完全未知，因为assume语句可以假设元素原型
+                // if( cur_arg->etype == eprototype::var and cur_arg->dtype->is_type(UnknownType) and !(*cur_expr) )
+                //     return diagnostics("31", *it), false;
                 movi(113);
             } else if( it->is(VN::FINAL) ) {
                 movi(113);

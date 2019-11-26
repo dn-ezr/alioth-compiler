@@ -170,9 +170,12 @@ bool SemanticContext::validateModuleDefinition( $module mod ) {
             string dname = GetBinarySymbol(($node)def);
             string pname = GetBinarySymbol(($node)prv);
             if( def->is(node::METHODDEF) and prv->is(node::METHODDEF) ) repeat = dname == pname;
-            diagnostics[def->getDocUri()]("79", def->name, dname)
-            [-1](prv->getDocUri(),"45", prv->name);
-            success = false;
+
+            if( repeat ) {
+                diagnostics[def->getDocUri()]("98", def->name, dname)
+                [-1](prv->getDocUri(), "45", prv->name);
+                success = false;
+            }
         }
     }
 
@@ -182,17 +185,22 @@ bool SemanticContext::validateModuleDefinition( $module mod ) {
 bool SemanticContext::validateClassDefinition(  $classdef cls ) {
     bool success = true;
 
+    /** 忽略模板类,只有模板类用例才会被检查 */
+    if( cls->targf.size() and !cls->targs.size() ) return true;
+
     /** 检查基类是否可达 */
     for( auto super : cls->supers ) {
-        auto res = Reach(super, SearchOption::ALL|SearchOption::ANY);
+        auto res = $(super);
         if( res.size() != 1 ) {
             diagnostics[cls->getDocUri()]("82", super->phrase);
             success = false;
+            continue;
         }
         auto def = ($classdef)res[0];
         if( !def or !CanBeInstanced(def) ) {
             diagnostics[cls->getDocUri()]("83", super->phrase);
             success = false;
+            continue;
         }
     }
 
@@ -216,15 +224,48 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
             string dname = GetBinarySymbol(($node)def);
             string pname = GetBinarySymbol(($node)prv);
             if( def->is(node::METHODDEF) and prv->is(node::METHODDEF) ) repeat = dname == pname;
-            diagnostics[def->getDocUri()]("79", def->name, dname)
-            [-1](prv->getDocUri(),"45", prv->name);
-            success = false;
+
+            if( repeat ) {
+                diagnostics[def->getDocUri()]("98", def->name, dname)
+                [-1](prv->getDocUri(), "45", prv->name);
+                success = false;
+            }
         }
 
         /** 检查谓词 */
+        //[TODO]
     }
 
     /** 检查循环包含 */
+    if( success ) {
+        function<bool($classdef def, classdefs padding)> check = [this,&check]( $classdef def, classdefs paddings) {
+            for( auto padding : paddings ) if( padding == def ) return false;
+
+            /** 检查基类循环 */
+            for( auto super : def->supers ) {
+                auto sdef = ReachClass(super);
+                if( !sdef ) return internal_error, false;
+                if( !check( sdef, paddings + classdefs{def} ) ) {
+                    if( paddings.size() == 0 ) diagnostics[def->getDocUri()]("91", super->phrase );
+                    return false;
+                }
+            }
+
+            /** 检查成员循环包含 */
+            for( auto content : def->contents ) {
+                if( auto attr = ($eprototype)content ) {
+                    $(attr);
+                    if( attr->etype == eprototype::obj and attr->dtype->is_type(StructType) )
+                        if( !check( ($classdef)attr->dtype->sub, paddings + classdefs{def}) ) {
+                            if( paddings.size() == 0 ) diagnostics[def->getDocUri()]("92", attr->phrase);
+                            return false;
+                        }
+                }
+            }
+            return true;
+        };
+        success = check( cls, {} ) and success;
+    }
 
     return success;
 }
@@ -240,10 +281,9 @@ bool SemanticContext::validateEnumDefinition(  $enumdef def ) {
 }
 
 bool SemanticContext::validateAliasDefinition(  $aliasdef def ) {
-
     bool success = true;
 
-    auto result = Reach(def->tagret, SearchOption::ALL|SearchOption::ANY);
+    auto result = $(def->tagret);
 
     success = result.size();
 
@@ -251,31 +291,44 @@ bool SemanticContext::validateAliasDefinition(  $aliasdef def ) {
 }
 
 bool SemanticContext::validateAttributeDefinition(  $attrdef def ) {
-    
     bool success = true;
+
+    if( !$(def->proto) ) {
+        success = false;
+    } else if( def->proto->etype == eprototype::obj and def->proto->dtype->is_type(PointerTypeMask) ) {
+        success = false;
+        diagnostics[def->getDocUri()]("42", def->phrase);
+    } else if( def->proto->etype == eprototype::ptr and !def->proto->dtype->is_type(PointerTypeMask) ) {
+        success = false;
+        diagnostics[def->getDocUri()]("42", def->phrase);
+    }
 
     return success;
 }
 
 bool SemanticContext::validateMethodDefinition(  $metdef def ) {
-    return false;
+    bool success = true;
+    for( auto proto : def->arg_protos ) {
+        if( !$(proto) ) success = false;
+    }
+    if( !$(def->ret_proto) ) success = false;
+    return success;
 }
 
 bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
-    return false;
+    return true;
 }
 
 bool SemanticContext::validateMethodImplementation( $metimpl impl ) {
-    return false;
+    return true;
 }
 
 bool SemanticContext::validateOperatorImplementation( $opimpl impl ) {
-    return false;
+    return true;
 }
 
-
 string SemanticContext::GetBinarySymbol( $node s ) {
-    if( !s ) return "<error>";
+    if( !s ) return "<error-0>";
     string symbol;
     auto mod = s->getModule();
     auto src = s;
@@ -287,7 +340,7 @@ string SemanticContext::GetBinarySymbol( $node s ) {
 
     if( auto impl = ($implementation)s; impl ) {
         auto def = GetDefinition(impl);
-        if( !def ) return "<error>";
+        if( !def ) return "<error-1>";
         else src = def;
     }
 
@@ -302,8 +355,8 @@ string SemanticContext::GetBinarySymbol( $node s ) {
         else if( auto mdef = ($metdef)def; mdef ) symbol = "method:" + symbol;
         else if( auto odef = ($opdef)def; odef ) symbol = "operator:" + symbol;
         else if( auto adef = ($attrdef)def; adef ) symbol = "attribute:" + symbol;
-        else if( auto idef = ($aliasdef)def; idef ) symbol += "alias:" + symbol;
-        else return "<error>";
+        else if( auto idef = ($aliasdef)def; idef ) symbol = "alias:" + symbol;
+        else return "<error-2>";
 
         if( auto call = dynamic_cast<callable*>(&*def); call ) {
             symbol += "(";
@@ -311,13 +364,72 @@ string SemanticContext::GetBinarySymbol( $node s ) {
                 if( i != 0 ) symbol += ",";
                 symbol += GetBinarySymbol(($node)call->arg_protos[i]);
             }
+            if( call->va_arg ) {
+                symbol += "...";
+                if( call->va_arg.is(VT::L::LABEL) ) symbol += call->va_arg;
+            }
             symbol += ")";
             symbol += GetBinarySymbol(($node)call->ret_proto);
         }
     } else if( auto proto = ($eprototype)src; proto ) {
-
+        proto = $(proto);
+        if( !proto ) return "<error-3>";
+        switch( proto->etype ) {
+            case eprototype::obj: symbol = "obj"; break;
+            case eprototype::ptr: symbol = "ptr"; break;
+            case eprototype::ref: symbol = "ref"; break;
+            case eprototype::rel: symbol = "rel"; break;
+            case eprototype::var: symbol = "var"; break;
+            default: return "<error-4>";
+        }
+        symbol += ":" + GetBinarySymbol(($node)proto->dtype);
     } else if( auto type = ($typeexpr)src; type ) {
-
+        type = $(type);
+        if( !type ) return "<error-5>";
+        if( type->is_type(UnknownType) ) {
+            return "<unknown>";
+        } else if( type->is_type(BasicTypeMask) ) {
+            switch( type->id ) {
+                case VoidType: symbol = "void"; break;
+                case BooleanType: symbol = "boolean"; break;
+                case Uint8Type: symbol = "uint8"; break;
+                case Uint16Type: symbol = "uint16"; break;
+                case Uint32Type: symbol = "uint32"; break;
+                case Uint64Type: symbol = "uint64"; break;
+                case Int8Type: symbol = "int8"; break;
+                case Int16Type: symbol = "int16"; break;
+                case Int32Type: symbol = "int32"; break;
+                case Int64Type: symbol = "int64"; break;
+                case Float32Type: symbol = "float32"; break;
+                case Float64Type: symbol = "float64"; break;
+                default: return "<error-6>";
+            }
+        } else if( type->is_type(ConstraintedPointerType) ) {
+            symbol = "^" + GetBinarySymbol(($node)type->sub);
+        } else if( type->is_type(UnconstraintedPointerType) ) {
+            symbol = "*" + GetBinarySymbol(($node)type->sub);
+        } else if( type->is_type(NullPointerType) ) {
+            symbol = "null";
+        } else if( type->is_type(CallableType) ) {
+            auto call = ($callable_type)type->sub;
+            symbol = "(";
+            for( auto i = 0; i < call->arg_protos.size(); i++ ) {
+                if( i != 0 ) symbol += ",";
+                symbol += GetBinarySymbol(($node)call->arg_protos[i]);
+            }
+            if( call->va_arg ) {
+                symbol += "...";
+                if( call->va_arg.is(VT::L::LABEL) ) symbol += call->va_arg;
+            }
+            if( call->ret_proto ) symbol += "=>" + GetBinarySymbol(($node)call->ret_proto);
+            symbol += ")";
+        } else if( type->is_type(EntityType) ) {
+            symbol = "entity." + GetBinarySymbol(($node)type->sub);
+        } else if( type->is_type(StructType) ) {
+            symbol = "struct." + GetBinarySymbol(($node)type->sub);
+        } else {
+            return "<error-7>";
+        }
     } else if( auto stmt = ($statement)src; stmt ) {
         symbol = stmt->name;
     }
@@ -327,14 +439,39 @@ string SemanticContext::GetBinarySymbol( $node s ) {
 }
 
 $definition SemanticContext::GetDefinition( $implementation impl ) {
+    if( !impl ) return nullptr;
+    auto tc = GetThisClassDef(($node)impl);
+    if( !tc ) return nullptr;
+
+    auto symbol = GetBinarySymbol(($node)impl);
+    for( auto def : tc->contents ) {
+        if( auto met = ($metdef)def; met ) {
+            auto defsymbol = GetBinarySymbol(($node)met);
+            if( defsymbol == symbol ) return def;
+        } else if( auto op = ($opdef)def; op ) {
+            auto defsymbol = GetBinarySymbol(($node)op);
+            if( defsymbol == symbol ) return def;
+        }
+    }
+
+    auto module = impl->getModule();
+    auto& diagnostics = module->sctx.diagnostics;
+    diagnostics[impl->getDocUri()]("96", impl->name);
     return nullptr;
 }
 
+$classdef SemanticContext::GetThisClassDef( $node n ) {
+    while( n and !n->is(node::IMPLEMENTATION) ) n = n->getScope();
+    auto impl = ($implementation)n;
+    if( !impl ) return nullptr;
+    return ReachClass(impl->host);
+}
+
 everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
-    if( !name ) return {};
+    if( !name ) return nothing;
     if( !scope ) scope = name->getScope();
     while( scope and (!scope->isscope() or scope->is(node::FRAGMENT)) ) scope = scope->getScope();
-    if( !scope or !scope->isscope() ) return {};
+    if( !scope or !scope->isscope() ) return nothing;
 
     auto module = scope->getModule();
     auto& semantic = module->sctx;
@@ -375,21 +512,26 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             if( auto attr = ($attrdef)def; attr ) {
                 if( (opts & SearchOption::MEMBERS) == 0 ) continue;
                 if( attr->name == name->name ) results << (anything)attr;
-            } else { //[TODO] 考虑定义前提
+            } else {
                 if( (opts & SearchOption::INNERS) == 0 ) continue;
                 if( def->name == name->name ) results << (anything)def;
             }
         }
+        
+        /** 搜索模板参数 */
+        if( sc->targs.size() ) for( auto i = 0; i < sc->targf.size(); i++ ) {
+            if( sc->targf[i] == name->name ) {
+                results << (anything)sc->targs[i];
+            }
+        }
     } else if( auto sc = ($implementation)scope; sc ) {
-        for( auto arg : sc->args ) {
+        for( auto arg : sc->args )
             if( arg->name == name->name )
                 results << (anything)arg;
-        }
     } else if( auto sc = ($blockstmt)scope; sc ) {
-        for( auto stmt : *sc ) {
+        for( auto stmt : *sc )
             if( stmt->name == name->name )
                 results << (anything)stmt;
-        }
     } else if( auto sc = ($loopstmt)scope; sc ) {
         if( sc->it->name == name->name )
             results << (anything)sc->it;
@@ -397,12 +539,21 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         if( sc->variable->name == name->name )
             results << (anything)sc->variable;
     } else if( auto sc = ($lambdaexpr)scope; sc ) {
-        for( auto arg : sc->args ) {
+        for( auto arg : sc->args )
             if( arg->name == name->name )
                 results << (anything)arg;
-        }
     } else {
         return internal_error, nothing;
+    }
+
+    /** 处理模板类用例的情况 */
+    if( name->targs.size() ) {
+        if( results.size() != 1 ) return diagnostics[name->getDocUri()]("90", name->name), nothing;
+        auto def = ($classdef)results[0];
+        if( !def ) return diagnostics[name->getDocUri()]("90", name->name), nothing;
+        auto usage = GetTemplateUsage( def, name->targs );
+        if( !usage ) return nothing;
+        results[0] = usage;
     }
 
     if( results.size() != 0 and name->next ) {
@@ -411,7 +562,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             return diagnostics[name->getDocUri()]("88", name->name), nothing;
         /** 处理目标并非作用域的情况 */
         auto sc = ($node)results[0];
-        if( !sc or sc->isscope() )
+        if( !sc or !sc->isscope() )
             return diagnostics[name->getDocUri()]("89", name->name), nothing;
         return Reach( name->next, SearchOption::ANY, sc, paddings );
     } else if( results.size() == 0 ) {
@@ -436,7 +587,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             if( auto def = GetDefinition(sc); def and (SearchOption::PARENT&opts) ) {
                 results += Reach(name, SearchOption::ANY|SearchOption::ALL, def, paddings);
             }
-        } else if( opts & SearchOption::PARENT ) {
+        } else if( (opts & SearchOption::PARENT) and scope->getScope() ) {
             results += Reach(name, SearchOption::ALL|SearchOption::ANY, scope->getScope(), paddings );
         } else {
             //[Nothing to be done]
@@ -449,7 +600,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         /** 处理循环引用的情况 */
         for( auto padding : paddings ) if( padding == alias ) {
             diagnostics[alias->getDocUri()]("87", alias->phrase);
-            return {};
+            return nothing;
         }
 
         /** 解析别名引用 */
@@ -457,7 +608,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             SearchOption::ALL|SearchOption::ANY, 
             alias->getScope(), 
             paddings+aliasdefs{alias} );
-        if( res.size() == 0 ) return {};
+        if( res.size() == 0 ) return nothing;
         results += res;
         results.remove(i--);
     }
@@ -465,8 +616,85 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
     return results;
 }
 
+$classdef SemanticContext::ReachClass( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
+    auto res = Reach(name, opts, scope, paddings);
+    if( res.size() != 1 ) return nullptr;
+    return ($classdef)res[0];
+}
+
+everything SemanticContext::$( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
+    return Reach( name, opts, scope, paddings );
+}
+
+$eprototype SemanticContext::ReductPrototype( $eprototype proto ) {
+    if( !proto ) return nullptr;
+    if( !$(proto->dtype, proto) ) return nullptr;
+    if( proto->etype == eprototype::var ) {
+        if( proto->dtype->is_type(UnknownType) ) proto->etype = eprototype::var;
+        else if( proto->dtype->is_type(PointerTypeMask) ) proto->etype = eprototype::ptr;
+        else proto->etype = eprototype::obj;
+    }
+    return proto;
+}
+
+$eprototype SemanticContext::$( $eprototype proto ) {
+    return ReductPrototype(proto);
+}
+
+$typeexpr SemanticContext::ReductTypeexpr( $typeexpr type, $eprototype proto ) {
+    auto& diagnostics = type->getModule()->sctx.diagnostics;
+    if( type->is_type(NamedType) ) {
+        auto res = $(($nameexpr)type->sub);
+        if( res.size() != 1 ) {
+            diagnostics[type->getDocUri()];
+            if( res.size() == 0 ) diagnostics("97", type->phrase);
+            else diagnostics("93", type->phrase);
+            type->id = UnsolvableType;
+            return nullptr;
+        }
+        if( auto def = ($classdef)res[0]; def ) {
+            type->id = StructType;
+            type->sub = def;
+        } else if( auto targ = ($eprototype)res[0]; targ ) {
+            if( proto ) if( proto->etype == eprototype::var ) proto->etype = targ->etype;
+            auto t = ReductTypeexpr(targ->dtype, nullptr); // 通过特定的源代码书写，可能造成编译器无限递归而崩溃
+            if( !t ) {
+                type->id = UnsolvableType;
+                return nullptr;
+            } else {
+                type->id = t->id;
+                type->sub = t->sub;
+            }
+        } else {
+            diagnostics[type->getDocUri()]("94", type->phrase);
+            return nullptr;
+        }
+    } else if( type->is_type(ThisClassType) ) {
+        auto def = GetThisClassDef(($node)type);
+        if( !def ) {
+            type->id = UnsolvableType;
+            diagnostics[type->getDocUri()]("95", type->phrase);
+            return nullptr;
+        }
+    } else if( type->is_type(UnsolvableType) ) {
+        return nullptr;
+    }
+
+    return type;
+}
+
+$typeexpr SemanticContext::$( $typeexpr type, $eprototype proto ) {
+    return ReductTypeexpr(type, proto);
+}
+
 bool SemanticContext::CanBeInstanced( $classdef def ) {
-    return true;//[TODO]
+    if( def->targf.size() and def->targs.size() == 0 ) return false;
+    /**[TODO] 检查抽象类所有方法被实现的情况 */
+    return true;
+}
+
+$classdef SemanticContext::GetTemplateUsage( $classdef def, eprototypes targs ) {
+    return nullptr; //[TODO]
 }
 
 }

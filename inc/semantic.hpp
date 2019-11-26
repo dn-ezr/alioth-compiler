@@ -66,8 +66,12 @@ namespace SearchOption {
     constexpr SearchOptions MEMBERS = 0x0200;
 
     /**
+     * 若当前作用域是类，搜索结果接受模板参数 */
+    constexpr SearchOptions TARGS = 0x0400;
+
+    /**
      * 若当前作用域是类，搜索结果接受任何 */
-    constexpr SearchOptions ANY = INNERS | MEMBERS;
+    constexpr SearchOptions ANY = INNERS | MEMBERS | TARGS;
 }
 
 /**
@@ -91,7 +95,6 @@ class SemanticContext {
          * @member forest : 语法树森林
          * @desc : 由抽象模块构成的森林 */
         map<$signature,$module> forest;
-
 
         /**
          * @member symbol_cache : 二进制符号缓冲 */
@@ -197,11 +200,49 @@ class SemanticContext {
          * @param paddings : 挂起别名，当搜索别名时，为了避免循环别名造成无限递归，要将正在搜索的别名挂起
          * @return everything : 查询结果，遭遇错误就返回空集
          *  诊断信息会沿着语法结构上传到模块诊断容器 */
-        static everything Reach( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr, aliasdefs paddings = {} );
+        static everything Reach( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings);
+
+        /**
+         * @static-method ReachClass : 尝试抵达一个类定义
+         * @param name : 要查询的名称
+         * @param opts : 搜索选项
+         * @param scope : 指定作用域，若此参数省略，则从名称表达式中提取作用域
+         * @param paddings : 挂起别名，当搜索别名时，为了避免循环别名造成无限递归，要将正在搜索的别名挂起
+         * @return everything : 查询结果，遭遇错误就返回空集
+         *  诊断信息会沿着语法结构上传到模块诊断容器 */
+        static $classdef ReachClass( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr, aliasdefs padding = {} );
+        static everything $( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr, aliasdefs paddings = {} );
+
+        /**
+         * @static-method ReductPrototype : 归约一个元素原型
+         * @desc :
+         *  从上下文语境确定元素原型,若解析失败，会将数据类型设置为Unsolvable并返回空代理
+         *  注: UnknownType 不能被解析，但不会被视为错误
+         * @param proto : 元素原型
+         * @return : 此方法会修改元素原型抽象语法结构的内容，并返回其自身引用
+         */
+        static $eprototype ReductPrototype( $eprototype proto );
+        static $eprototype $( $eprototype proto );
+
+        /**
+         * @static-method ReductTypeexpr : 归约一个类型表达式
+         * @desc :
+         *  尝试从上下文语境推算数据类型，将未确定的数据类型归约成为确定的数据类型
+         *  在NamedType指向了模板参数的情况下，若给出了元素原型的代理，此方法使用模板参数的元素类型替换元素原型中的元素类型
+         * @param type : 要推算的数据类型
+         * @param proto : 数据类型所属的元素原型
+         * @return : 若推算成功返回数据类型自身的引用，若推算失败则返回空代理
+         */
+        static $typeexpr ReductTypeexpr( $typeexpr type, $eprototype proto );
+        static $typeexpr $( $typeexpr type, $eprototype proto = nullptr );
         
         /**
          * @static-method GetDefinition : 获取实现对应的定义 */
         static $definition GetDefinition( $implementation );
+
+        /**
+         * @static-method GetThisClassDef : 获取语句所在的实现的当前类定义 */
+        static $classdef GetThisClassDef( $node n );
 
         /**
          * @method CanBeInstanced : 是否可实例
@@ -215,6 +256,17 @@ class SemanticContext {
          *  也即，此方法仅以简单的规则运行，不过多考虑实际因素
          */
         static bool CanBeInstanced( $classdef );
+
+        /**
+         * @method GetTemplateUsage : 获取模板用例
+         * @desc :
+         *  对模板类，传入模板参数获取用例
+         *  若出现错误，则向def所属的语义上下文填写诊断信息
+         * @param def : 模板类定义
+         * @param targs : 模板参数列表
+         * @return $classdef : 若成功返回用例类定义，若失败，返回空
+         */
+        static $classdef GetTemplateUsage( $classdef def, eprototypes targs );
 };
 
 }
