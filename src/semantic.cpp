@@ -316,7 +316,137 @@ bool SemanticContext::validateMethodDefinition(  $metdef def ) {
 }
 
 bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
-    return true;
+    bool success;
+
+    if( def->name.is(
+        PVT::ADD,PVT::SUB,PVT::MUL,PVT::DIV,PVT::MOL,
+        PVT::BITAND,PVT::BITOR,PVT::BITXOR,PVT::SHL,PVT::SHR,
+        PVT::LT,PVT::GT,PVT::LE,PVT::GE,PVT::EQ,PVT::NE,
+        PVT::AND,PVT::OR,PVT::XOR,
+        PVT::INDEX ) ) {
+            if( def->modifier.is(PVT::PREFIX,PVT::SUFFIX,VT::DEFAULT,VT::DELETE) ) {
+                success = false;
+                diagnostics[def->getDocUri()]("99", def->modifier);
+            }
+            if( def->arg_names.size() != 1 or def->va_arg ) {
+                success = false;
+                diagnostics[def->getDocUri()]("100", def->name);
+            }
+    } else if( def->name.is(PVT::NOT,PVT::NEGATIVE,PVT::BITREV) ) {
+        if( def->modifier ) {
+            success = false;
+            diagnostics[def->getDocUri()]("99", def->modifier);
+        }
+        if( def->arg_names.size() != 1 or def->va_arg ) {
+            success = false;
+            diagnostics[def->getDocUri()]("100", def->name);
+        }
+    } else if( def->name.is(PVT::INCREMENT,PVT::DECREMENT) ) {
+        if( !def->modifier or def->modifier.is(PVT::REV,PVT::ISM,VT::DELETE,VT::DEFAULT) ) {
+            success = false;
+            diagnostics[def->getDocUri()]("99", def->modifier);
+        }
+        if( def->arg_names.size() != 0 or def->va_arg ) {
+            success = false;
+            diagnostics[def->getDocUri()]("100", def->name);
+        }
+    } else if( def->name.is(PVT::ASSIGN,PVT::CCTOR,PVT::MCTOR) ) {
+        if( def->modifier.is(VT::DEFAULT) ) {
+            if( def->name.is(PVT::CCTOR,PVT::MCTOR ) ) {
+                success = false;
+                diagnostics[def->getDocUri()]("100", def->name);
+            }
+        } else if( def->modifier.is(VT::DELETE) ) {
+            if(  def->name.is(PVT::ASSIGN) ) {
+                success = false;
+                diagnostics[def->getDocUri()]("100", def->name);
+            }
+        } else {
+            if( def->modifier ) {
+                success = false;
+                diagnostics[def->getDocUri()]("99", def->modifier);
+            }
+            if( def->arg_names.size() != 1 or def->va_arg ) {
+                success = false;
+                diagnostics[def->getDocUri()]("100", def->name);
+            }  
+        }
+    } else if( def->name.is(PVT::ASSIGN_ADD,PVT::ASSIGN_SUB,PVT::ASSIGN_MUL,PVT::ASSIGN_DIV,PVT::ASSIGN_MOL,
+        PVT::ASSIGN_SHL,PVT::ASSIGN_SHR,PVT::ASSIGN_BITAND,PVT::ASSIGN_BITOR,PVT::ASSIGN_BITXOR ) ) {
+            if( def->modifier ) {
+                success = false;
+                diagnostics[def->getDocUri()]("99", def->modifier);
+            }
+            if( def->arg_names.size() != 1 or def->va_arg ) {
+                success = false;
+                diagnostics[def->getDocUri()]("100", def->name);
+            }
+    } else if( def->name.is(PVT::SCTOR,PVT::LCTOR) ) {
+        if( def->modifier ) {
+            success = false;
+            diagnostics[def->getDocUri()]("99", def->modifier);
+        }
+    } else if( def->name.is(PVT::DTOR) ) {
+        if( def->modifier ) {
+            success = false;
+            diagnostics[def->getDocUri()]("99", def->modifier);
+        }
+        if( def->arg_names.size() != 0 or def->va_arg ) {
+            success = false;
+            diagnostics[def->getDocUri()]("100", def->name);
+        }
+    } else if( def->name.is(PVT::AS,PVT::MEMBER,PVT::ASPECT) ) {
+        if( def->modifier ) {
+            success = false;
+            diagnostics[def->getDocUri()]("99", def->modifier);
+        }
+        if( def->name.is(PVT::MEMBER) and (def->arg_names.size() > 1 or def->va_arg) ) {
+            success = false;
+            diagnostics[def->getDocUri()]("100", def->name);
+        } else if( def->name.is(PVT::AS) and (def->arg_names.size() != 0 or def->va_arg) ) {
+            success = false;
+            diagnostics[def->getDocUri()]("100", def->name);
+        }
+    } else if( def->name.is(PVT::MOVE) ) {
+        //应当允许重载两个move运算符，无参数版本用于move动作之后，带指针参数版本用于move动作之前
+        if( def->modifier ) {
+            success = false;
+            diagnostics[def->getDocUri()]("99", def->modifier);
+        }
+        if( def->arg_protos.size() == 1 ) {
+            auto proto  =$(def->arg_protos[0]);
+            if( proto ) {
+                bool bad = false;
+                if( proto->etype != eprototype::ptr ) bad = true;
+                if( !proto->dtype->is_type(ConstraintedPointerType) ) bad = true;
+                auto dt = ($typeexpr)proto->dtype->sub;
+                if( dt ) {
+                    if( !dt->is_type(StructType) ) bad = true;
+                    if( dt->sub != def->getScope() ) bad = true;
+                } else {
+                    bad = true;
+                }
+                if( bad ) diagnostics[def->getDocUri()]("101", def->arg_names[0]);
+            }
+        } else if( def->arg_protos.size() > 1 ) {
+            success = false;
+            diagnostics[def->getDocUri()]("100", def->name);
+        }
+    } else {
+        return internal_error, false;
+    }
+
+    for( auto proto : def->arg_protos ) if( !$(proto) ) {
+        success = false;
+        diagnostics[proto->getDocUri()]("102", proto->phrase );
+    }
+
+    if( def->ret_proto and !$(def->ret_proto) ) {
+        success = false;
+        diagnostics[def->getDocUri()]("103", def->ret_proto->phrase);
+    }
+
+    return success;
 }
 
 bool SemanticContext::validateMethodImplementation( $metimpl impl ) {
@@ -339,38 +469,28 @@ string SemanticContext::GetBinarySymbol( $node s ) {
     }
 
     if( auto impl = ($implementation)s; impl ) {
-        auto def = GetDefinition(impl);
-        if( !def ) return "<error-1>";
-        else src = def;
-    }
-
-    if( auto def = ($definition)src; def ) {
-        symbol = def->name;
+        auto tc = GetThisClassDef(($node)impl);
+        if( !tc ) return "<error-1>";
+        symbol = tc->name.tostr();
+        for( auto d = tc->getScope(); d != nullptr; d = d->getScope() ) {
+            if( auto cd = ($classdef)d; cd ) symbol = (string)cd->name + "::" + symbol;
+            else if( auto md = ($module)d; md ) symbol = (string)md->sig->name + "::" + symbol;
+        }
+        /** 接下来的工作在原型处处理 */
+    } else if( auto def = ($definition)src; def ) {
+        symbol = def->name.tostr();
         for( auto d = def->getScope(); d != nullptr; d = d->getScope() ) {
             if( auto cd = ($classdef)d; cd ) symbol = (string)cd->name + "::" + symbol;
             else if( auto md = ($module)d; md ) symbol = (string)md->sig->name + "::" + symbol;
         }
         if( auto cdef = ($classdef)def; cdef ) symbol = "class:" + symbol;
         else if( auto edef = ($enumdef)def; edef ) symbol = "enum:" + symbol;
-        else if( auto mdef = ($metdef)def; mdef ) symbol = "method:" + symbol;
-        else if( auto odef = ($opdef)def; odef ) symbol = "operator:" + symbol;
+        else if( auto mdef = ($metdef)def; mdef ) /** 此部分工作在原型部分完成 */;
+        else if( auto odef = ($opdef)def; odef ) /** 此部分工作在原型部分完成 */;
         else if( auto adef = ($attrdef)def; adef ) symbol = "attribute:" + symbol;
         else if( auto idef = ($aliasdef)def; idef ) symbol = "alias:" + symbol;
         else return "<error-2>";
 
-        if( auto call = dynamic_cast<callable*>(&*def); call ) {
-            symbol += "(";
-            for( int i = 0; i < call->arg_protos.size(); i++ ) {
-                if( i != 0 ) symbol += ",";
-                symbol += GetBinarySymbol(($node)call->arg_protos[i]);
-            }
-            if( call->va_arg ) {
-                symbol += "...";
-                if( call->va_arg.is(VT::L::LABEL) ) symbol += call->va_arg;
-            }
-            symbol += ")";
-            symbol += GetBinarySymbol(($node)call->ret_proto);
-        }
     } else if( auto proto = ($eprototype)src; proto ) {
         proto = $(proto);
         if( !proto ) return "<error-3>";
@@ -411,18 +531,7 @@ string SemanticContext::GetBinarySymbol( $node s ) {
         } else if( type->is_type(NullPointerType) ) {
             symbol = "null";
         } else if( type->is_type(CallableType) ) {
-            auto call = ($callable_type)type->sub;
-            symbol = "(";
-            for( auto i = 0; i < call->arg_protos.size(); i++ ) {
-                if( i != 0 ) symbol += ",";
-                symbol += GetBinarySymbol(($node)call->arg_protos[i]);
-            }
-            if( call->va_arg ) {
-                symbol += "...";
-                if( call->va_arg.is(VT::L::LABEL) ) symbol += call->va_arg;
-            }
-            if( call->ret_proto ) symbol += "=>" + GetBinarySymbol(($node)call->ret_proto);
-            symbol += ")";
+            /** 此处的任务在下面的call部分被处理 */
         } else if( type->is_type(EntityType) ) {
             symbol = "entity." + GetBinarySymbol(($node)type->sub);
         } else if( type->is_type(StructType) ) {
@@ -432,6 +541,38 @@ string SemanticContext::GetBinarySymbol( $node s ) {
         }
     } else if( auto stmt = ($statement)src; stmt ) {
         symbol = stmt->name;
+    }
+
+    /** 处理方法原型和运算符原型 */
+    if( auto met = dynamic_cast<metprototype*>(&*src); met ) {
+        string prefix = "method";
+        if( met->cons ) prefix += ".const";
+        if( met->meta ) prefix += ".meta";
+        symbol = prefix + ":" + symbol;
+    } else if( auto op = dynamic_cast<opprototype*>(&*src); op ) {
+        string prefix = "operator";
+        if( op->cons ) prefix += ".const";
+        if( op->modifier ) prefix += "." + (string)op->modifier;
+        symbol = "operator:" + symbol;
+        if( op->subtitle ) symbol += "." + (string)op->subtitle;
+    }
+
+    /** 处理可调用的情况 */
+    auto call = ($callable_type)src;
+    if( auto cal = dynamic_cast<callable*>(&*src); cal ) call = cal->getType();
+    if( call ) {
+        symbol += "(";
+        for( int i = 0; i < call->arg_protos.size(); i++ ) {
+            if( i != 0 ) symbol += ",";
+            symbol += GetBinarySymbol(($node)call->arg_protos[i]);
+        }
+        if( call->va_arg ) {
+            symbol += "...";
+            if( call->va_arg.is(VT::L::LABEL) ) symbol += call->va_arg;
+        }
+        if( call->ret_proto ) symbol += "=>" + GetBinarySymbol(($node)call->ret_proto);
+        symbol += ")";
+        symbol += GetBinarySymbol(($node)call->ret_proto);
     }
 
     if( mod ) mod->sctx.symbol_cache[s] = symbol;
@@ -461,10 +602,14 @@ $definition SemanticContext::GetDefinition( $implementation impl ) {
 }
 
 $classdef SemanticContext::GetThisClassDef( $node n ) {
-    while( n and !n->is(node::IMPLEMENTATION) ) n = n->getScope();
-    auto impl = ($implementation)n;
-    if( !impl ) return nullptr;
-    return ReachClass(impl->host);
+    while( n and !n->is(node::IMPLEMENTATION) and !n->is(node::CLASSDEF) ) n = n->getScope();
+    if( auto impl = ($implementation)n; impl ) {
+        return ReachClass(impl->host);
+    } else if( auto def = ($classdef)n; def ) {
+        return def;
+    } else {
+        return nullptr;
+    }
 }
 
 everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
@@ -675,9 +820,14 @@ $typeexpr SemanticContext::ReductTypeexpr( $typeexpr type, $eprototype proto ) {
             type->id = UnsolvableType;
             diagnostics[type->getDocUri()]("95", type->phrase);
             return nullptr;
+        } else {
+            type->id = StructType;
+            type->sub = def;
         }
     } else if( type->is_type(UnsolvableType) ) {
         return nullptr;
+    } else if( auto sub = ($typeexpr)type->sub; sub ) {
+        if( !$(sub) ) return nullptr;
     }
 
     return type;

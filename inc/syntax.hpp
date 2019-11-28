@@ -255,9 +255,6 @@ struct callable_type : public thing {
          * @member va_arg: 可变参数 
          * @desc: 若无效表示方法不使用可变参数；若为LABEL则使用静态可变参数；若为ETC则使用动态可变参数 */
         token va_arg;
-
-    public:
-        operator callable() const;
 };
 
 /**
@@ -280,7 +277,7 @@ struct callable {
         token va_arg;
 
     public:
-        operator callable_type() const;
+        $callable_type getType() const;
 };
 
 /**

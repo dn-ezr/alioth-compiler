@@ -32,6 +32,77 @@ token::operator std::string()const {
     return tx;
 }
 
+std::string token::tostr()const {
+    if( is(PVT::PRIVATE) ) return "private";
+    else if( is(PVT::PROTECTED) ) return "protected";
+    else if( is(PVT::PUBLIC) ) return "public";
+    else if( is(PVT::ABSTRACT) ) return "abstract";
+    else if( is(PVT::ATOMIC) ) return "atomic";
+    else if( is(PVT::ASYNC) ) return "async";
+    else if( is(PVT::RAW) ) return "raw";
+    else if( is(PVT::PREFIX) ) return "prefix";
+    else if( is(PVT::SUFFIX) ) return "suffix";
+    else if( is(PVT::REV) ) return "rev";
+    else if( is(PVT::ISM) ) return "ism";
+    else if( is(PVT::ADD) ) return "add";
+    else if( is(PVT::SUB) ) return "sub";
+    else if( is(PVT::MUL) ) return "mul";
+    else if( is(PVT::DIV) ) return "div";
+    else if( is(PVT::MOL) ) return "mol";
+    else if( is(PVT::BITAND) ) return "bitand";
+    else if( is(PVT::BITOR) ) return "bitor";
+    else if( is(PVT::BITXOR) ) return "botxor";
+    else if( is(PVT::SHL) ) return "shl";
+    else if( is(PVT::SHR) ) return "shr";
+    else if( is(PVT::LT) ) return "lt";
+    else if( is(PVT::GT) ) return "gt";
+    else if( is(PVT::LE) ) return "le";
+    else if( is(PVT::GE) ) return "ge";
+    else if( is(PVT::EQ) ) return "eq";
+    else if( is(PVT::NE) ) return "ne";
+    else if( is(PVT::AND) ) return "and";
+    else if( is(PVT::OR) ) return "or";
+    else if( is(PVT::XOR) ) return "xor";
+    else if( is(PVT::NOT) ) return "not";
+    else if( is(PVT::INDEX) ) return "index";
+    else if( is(PVT::NEGATIVE) ) return "negative";
+    else if( is(PVT::BITREV) ) return "bitrev";
+    else if( is(PVT::INCREMENT) ) return "increment";
+    else if( is(PVT::DECREMENT) ) return "decrement";
+    else if( is(PVT::EQUAL) ) return "assign";
+    else if( is(PVT::ASSIGN) ) return "assign";
+    else if( is(PVT::ASSIGN_ADD) ) return "assign-add";
+    else if( is(PVT::ASSIGN_SUB) ) return "assign-sub";
+    else if( is(PVT::ASSIGN_MUL) ) return "assign-mul";
+    else if( is(PVT::ASSIGN_DIV) ) return "assign-div";
+    else if( is(PVT::ASSIGN_MOL) ) return "assign-mol";
+    else if( is(PVT::ASSIGN_SHL) ) return "assign-shl";
+    else if( is(PVT::ASSIGN_SHR) ) return "assign-shr";
+    else if( is(PVT::ASSIGN_BITAND) ) return "assign-bitand";
+    else if( is(PVT::ASSIGN_BITOR) ) return "assign-bitor";
+    else if( is(PVT::ASSIGN_BITXOR) ) return "assign-bitxor";
+    else if( is(PVT::SCTOR) ) return "sctor";
+    else if( is(PVT::LCTOR) ) return "lctor";
+    else if( is(PVT::DTOR) ) return "dtor";
+    else if( is(PVT::CCTOR) ) return "cctor";
+    else if( is(PVT::MCTOR) ) return "mctor";
+    else if( is(PVT::AS) ) return "as";
+    else if( is(PVT::POINT) ) return "member";
+    else if( is(PVT::SHARP) ) return "aspect";
+    else if( is(PVT::MOVE) ) return "move";
+    else if( is(PVT::MEMBER) ) return "member";
+    else if( is(PVT::ASPECT) ) return "aspect";
+    else if( is(PVT::IS) ) return "is";
+    else if( is(PVT::WHILE) ) return "while";
+    else if( is(PVT::FOR) ) return "for";
+    else if( is(PVT::ON) ) return "on";
+    else if( is(PVT::THEN) ) return "then";
+    else if( is(PVT::AFTER) ) return "after";
+    else if( is(PVT::WHEN) ) return "when";
+    else if( VT::written_table.count(id) ) return VT::written_table.at(id);
+    else return tx;
+}
+
 token::operator bool()const {
     return !is(VT::R::ERR);
 }
@@ -240,6 +311,7 @@ bool token::is( PVT p )const {
         case PVT::INCREMENT: return tx == "increment" or is(VT::O::INCREMENT);
         case PVT::DECREMENT: return tx == "decrement" or is(VT::O::DECREMENT);
         case PVT::EQUAL: return tx == "assign" or is(VT::O::ASSIGN);
+        case PVT::ASSIGN: return is(VN::OP::ASSIGN);
         case PVT::ASSIGN_ADD: return is(VT::O::ASS::PLUS) or is(VN::OP::ASS::ADD);
         case PVT::ASSIGN_SUB: return is(VT::O::ASS::MINUS) or is(VN::OP::ASS::SUB);
         case PVT::ASSIGN_MUL: return is(VT::O::ASS::MUL) or is(VN::OP::ASS::MUL);

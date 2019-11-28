@@ -121,6 +121,14 @@ class token {
         operator std::string()const;
 
         /**
+         * @method tostr : 转换成为字符串
+         * @desc :
+         *  此方法尽可能将记号转换为字母序列
+         * @return std::string
+         */
+        std::string tostr()const;
+
+        /**
          * @operator bool : 作布尔使用
          * @desc :
          *  此方法检查记号是否确定为一个VT::R::ERR终结符

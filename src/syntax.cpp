@@ -373,6 +373,14 @@ void SyntaxContext::redu(int c, int n ) {
     it.r.insert(std::move(node),it.pos);
 }
 
+$callable_type callable::getType()const {
+    auto call = new callable_type;
+    call->ret_proto = ret_proto;
+    call->arg_protos = arg_protos;
+    call->va_arg = va_arg;
+    return call;
+}
+
 SyntaxContext::wb SyntaxContext::enter() {
     ws << states.size();
     return std::move(wb(states.size(),ws.size(),*this));
@@ -1120,10 +1128,14 @@ $opdef SyntaxContext::constructOperatorDefinition( $scope scope ) {
         case 3:
             if( it->is(VN::LIST) ) {
                 movi(4);
-            } else if( !ref->name.is(PVT::SCTOR) ) {
-                if( !constructParameterList(scope, *ref, ref->arg_names) ) return nullptr;
+            } else if( !ref->modifier.is(VT::DEFAULT,VT::DELETE) ) {
+                if( !ref->name.is(PVT::SCTOR) ) {
+                    if( !constructParameterList(scope, *ref, ref->arg_names) ) return nullptr;
+                } else {
+                    if( !constructParameterList(scope, *ref, ref->arg_names, ref->defvals ) ) return nullptr;
+                } 
             } else {
-                if( !constructParameterList(scope, *ref, ref->arg_names, ref->defvals ) ) return nullptr;
+                movi(4,0);
             } break;
         case 4:
             if( it->is(VN::ELEPROTO) ) {
@@ -1402,19 +1414,7 @@ $metimpl SyntaxContext::constructMethodImplementation( $scope scope ) {
             if( it->is(VN::LIST) ) {
                 movi(4);
             } else if( constructParameterList(ref, *ref, ref->arg_names) ) {
-                bool ok = true;
-                for( auto& name : ref->arg_names ) {
-                    for( auto& another : ref->arg_names ) {
-                        if( &another == &name ) break;
-                        if( another.tx == name.tx ) {
-                            diagnostics("56", name)
-                                [-1]
-                                    (diagnostics.prefix(), "45", another);
-                            ok = false;
-                        }
-                    }
-                }
-                if( not ok ) return nullptr;
+                /** NOTHING TO BE DONE */
             } else {
                 return nullptr;
             } break;
@@ -3050,6 +3050,8 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens&
                 //[NOTE]2019/11/26 允许参数的原型完全未知，因为assume语句可以假设元素原型
                 // if( cur_arg->etype == eprototype::var and cur_arg->dtype->is_type(UnknownType) and !(*cur_expr) )
                 //     return diagnostics("31", *it), false;
+                cur_arg->setScope(scope);
+                cur_arg->phrase = *it;
                 movi(113);
             } else if( it->is(VN::FINAL) ) {
                 movi(113);
@@ -3115,7 +3117,19 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens&
             return internal_error, false;
     }
 
-    return true;
+    bool ok = true;
+    for( auto& name : names ) {
+        for( auto& another : names ) {
+            if( &another == &name ) break;
+            if( another.tx == name.tx ) {
+                diagnostics("56", name)
+                    [-1]
+                        (diagnostics.prefix(), "45", another);
+                ok = false;
+            }
+        }
+    }
+    return ok;
 }
 
 $statement SyntaxContext::constructStatement( $scope scope, bool block, bool ele ) {
