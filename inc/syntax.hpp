@@ -179,6 +179,15 @@ struct node : public thing {
         virtual bool is( type type ) const = 0;
 
         /**
+         * @method clone : 向新的作用域拷贝一份当前语法结构 
+         * @desc :
+         *  此方法只产生新的语法结构，不会将新的语法结构挂接在新的作用域
+         * @param scope : 新的作用域
+         * @return $node : 新的语法结构
+         */
+        virtual $node clone( $scope scope ) const = 0;
+
+        /**
          * @method isscope : 判断是否为作用域
          * @desc :
          *  判断语法树节点是否能作为作用域被记录在子节点中
@@ -391,6 +400,7 @@ struct signature : public node {
         CompilerContext& getCompilerContext()override;
         virtual ~signature() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 
         /**
@@ -455,6 +465,7 @@ struct depdesc : public node {
     public:
         virtual ~depdesc() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 
         /**
          * @method toJson : 转换成json格式存储
@@ -497,6 +508,7 @@ struct fragment : public node {
 
         virtual ~fragment() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 
         virtual Uri getDocUri() override;
@@ -619,6 +631,7 @@ struct eprototype : virtual public node {
         
         virtual ~eprototype() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -728,6 +741,7 @@ struct classdef : public definition {
 
         virtual ~classdef() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -745,12 +759,13 @@ struct aliasdef : public definition {
          * @desc : 别名所指向的目标数据类型，
          * 虽然语法规定此语法规则用于给类定义制定别名，但在语义分析中，
          * 此结构单纯起到无差别转发功能，所以任何具名语法结构都可以定制别名 */
-        $nameexpr tagret;
+        $nameexpr target;
 
     public:
 
         virtual ~aliasdef() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -769,6 +784,7 @@ struct enumdef : public definition {
 
         virtual ~enumdef() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -799,6 +815,7 @@ struct attrdef : public definition {
     public:
         virtual ~attrdef() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -821,6 +838,7 @@ struct opdef : public definition, public opprototype {
     public:
         virtual ~opdef() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -845,6 +863,7 @@ struct metdef : public definition, public metprototype {
     public:
         virtual ~metdef() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -870,6 +889,7 @@ struct opimpl : public implementation, public opprototype {
     public:
         virtual ~opimpl() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -881,6 +901,7 @@ struct metimpl : public implementation, public metprototype {
     public:
         virtual ~metimpl() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -893,6 +914,7 @@ struct blockstmt : public statement, public statements {
     public:
         virtual ~blockstmt() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -901,9 +923,11 @@ struct blockstmt : public statement, public statements {
  * @desc :
  *  元素语句用于创建一个元素绑定一个即将创建的对象
  *  元素语句使用name属性表示元素名称 */
-struct element : public statement, public eprototype {
+struct element : public statement {
 
     public:
+
+        $eprototype proto;
 
         /**
          * @member init : 初始化表达式
@@ -918,6 +942,7 @@ struct element : public statement, public eprototype {
     public:
         virtual ~element() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -941,6 +966,7 @@ struct fctrlstmt : public statement {
     public:
         virtual ~fctrlstmt() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1047,6 +1073,7 @@ struct branchstmt : public statement {
     public:
         virtual ~branchstmt() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1075,6 +1102,7 @@ struct switchstmt : public statement {
     public:
         virtual ~switchstmt() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1113,12 +1141,14 @@ struct loopstmt : public statement {
          * @member ctrl : 控制表达式 */
         $exprstmt ctrl;
 
-        /** @member body : 循环体 */
+        /** 
+         * @member body : 循环体 */
         $statement body;
     
     public:
         virtual ~loopstmt() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -1158,6 +1188,7 @@ struct assumestmt : public statement {
     public:
         virtual ~assumestmt() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -1195,6 +1226,7 @@ struct dostmt : public statement {
     public:
         virtual ~dostmt() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1212,6 +1244,7 @@ struct constant : public exprstmt {
     public:
         virtual ~constant() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1242,6 +1275,7 @@ struct nameexpr : public exprstmt {
     public:
         virtual ~nameexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1291,6 +1325,7 @@ struct typeexpr : public exprstmt {
 
         virtual ~typeexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         bool is_type( typeid_t )const;
 };
 
@@ -1306,6 +1341,7 @@ struct monoexpr : public exprstmt {
     public:
         virtual ~monoexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1325,6 +1361,7 @@ struct binexpr : public exprstmt {
     public:
         virtual ~binexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1350,6 +1387,7 @@ struct callexpr : public exprstmt {
     public:
         virtual ~callexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1375,6 +1413,7 @@ struct lambdaexpr : public exprstmt, public callable {
     public:
         virtual ~lambdaexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
         this_is_scope
 };
 
@@ -1394,6 +1433,7 @@ struct sctorexpr : public exprstmt, public exprstmts {
     public:
         virtual ~sctorexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1410,6 +1450,7 @@ struct lctorexpr : public exprstmt, public exprstmts {
     public:
         virtual ~lctorexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1421,6 +1462,7 @@ struct tctorexpr : public exprstmt, public exprstmts {
     public:
         virtual ~tctorexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1447,6 +1489,7 @@ struct newexpr : public exprstmt {
     public:
         virtual ~newexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1467,6 +1510,7 @@ struct delexpr : public exprstmt {
     public:
         virtual ~delexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1483,6 +1527,7 @@ struct doexpr : public exprstmt {
     public:
         virtual ~doexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1503,6 +1548,7 @@ struct tconvexpr : public exprstmt {
     public:
         virtual ~tconvexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1523,6 +1569,7 @@ struct aspectexpr : public exprstmt {
     public:
         virtual ~aspectexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 /**
@@ -1545,6 +1592,7 @@ struct mbrexpr : public exprstmt {
     public:
         virtual ~mbrexpr() = default;
         bool is( type )const override;
+        $node clone( $scope scope ) const override;
 };
 
 

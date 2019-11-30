@@ -13,6 +13,10 @@ bool module::is( type t )const {
     return t == MODULE;
 }
 
+$node module::clone( $scope scope ) const {
+    throw logic_error("modle::clone(): method not allowed");
+}
+
 $module module::getModule() {
     return this;
 }
@@ -283,7 +287,7 @@ bool SemanticContext::validateEnumDefinition(  $enumdef def ) {
 bool SemanticContext::validateAliasDefinition(  $aliasdef def ) {
     bool success = true;
 
-    auto result = $(def->tagret);
+    auto result = $(def->target);
 
     success = result.size();
 
@@ -749,7 +753,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         }
 
         /** 解析别名引用 */
-        auto res = Reach(alias->tagret, 
+        auto res = Reach(alias->target, 
             SearchOption::ALL|SearchOption::ANY, 
             alias->getScope(), 
             paddings+aliasdefs{alias} );
@@ -826,6 +830,13 @@ $typeexpr SemanticContext::ReductTypeexpr( $typeexpr type, $eprototype proto ) {
         }
     } else if( type->is_type(UnsolvableType) ) {
         return nullptr;
+    } else if( type->is_type(CallableType) ) {
+        auto success = true;
+        auto call = ($callable_type)type->sub;
+        for( auto arg : call->arg_protos )
+            if( !$(arg) ) success = false;
+        if( !$(call->ret_proto) ) success = false;
+        if( !success ) return nullptr;
     } else if( auto sub = ($typeexpr)type->sub; sub ) {
         if( !$(sub) ) return nullptr;
     }
@@ -844,7 +855,77 @@ bool SemanticContext::CanBeInstanced( $classdef def ) {
 }
 
 $classdef SemanticContext::GetTemplateUsage( $classdef def, eprototypes targs ) {
-    return nullptr; //[TODO]
+    auto module = def->getModule();
+    auto& context = module->sctx;
+    auto& diagnostics = context.diagnostics;
+
+    /** 检查各种类型的内部错误 */
+    if( def->targf.size() == 0 ) return internal_error, nullptr;
+    else if( targs.size() == 0 ) return internal_error, nullptr;
+    else if( def->targs.size() != 0 ) return internal_error, nullptr;
+
+    /** 检查模板参数列表 */
+    if( targs.size() != def->targf.size() ) return diagnostics[targs[-1]->getDocUri()]("104", targs[-1]->phrase), nullptr;
+
+    /** 检查已经存在的模板用例 */
+    for( auto usage : def->usages ) {
+        bool same = true;
+        for( auto i = 0; i < targs.size(); i++ ) {
+            if( !IsIdentical(usage->targs[i], targs[i]) ) {
+                same = false;
+                break;
+            }
+        }
+        if( same ) return usage;
+    }
+
+    /** 检查谓词条件 */
+    set<int> premise;
+    //[TODO]
+
+    /** 产生模板用例 */
+    auto usage = ($classdef)def->clone(def->getScope());
+
+    /** 根据谓词删除前提不成立的定义 */
+    //[TODO]
+
+    def->usages << usage;
+
+    return usage;
+}
+
+bool SemanticContext::IsIdentical( $eprototype a, $eprototype b, bool u ) {
+    a = $(a);
+    b = $(b);
+    if( !a or !b ) return false;
+    if( a->etype != b->etype ) return false;
+    if( (bool)a->cons xor (bool)b->cons ) return false;
+    return IsIdentical( a->dtype, b->dtype, u );
+}
+
+bool SemanticContext::IsIdentical( $typeexpr a, $typeexpr b, bool u ) {
+    a = $(a);
+    b = $(b);
+    if( !a or !b ) return false;
+    if( !u and (a->is_type(UnknownType) or b->is_type(UnknownType)) ) return false;
+    if( a->id != b->id ) return false;
+    if( a->is_type(StructType) or a->is_type(EntityType) ) {
+        return a->sub == b->sub;
+    } else if( a->is_type(PointerTypeMask) ) {
+        return IsIdentical( ($typeexpr)a->sub, ($typeexpr)b->sub );
+    } else if( a->is_type(CallableType) ) {
+        auto calla = ($callable_type)a->sub;
+        auto callb = ($callable_type)b->sub;
+        if( !IsIdentical(calla->ret_proto,callb->ret_proto, true) ) return false;
+        if( calla->arg_protos.size() != callb->arg_protos.size() ) return false;
+        if( (bool)calla->va_arg xor (bool)callb->va_arg ) return false;
+        for( auto i = 0; i < calla->arg_protos.size(); i++ )
+            if( !IsIdentical(calla->arg_protos[i], callb->arg_protos[i], true) )
+                return false;
+        return true;
+    } else {
+        return true;
+    }
 }
 
 }

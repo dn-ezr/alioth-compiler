@@ -6,11 +6,55 @@
 
 namespace alioth {
 
+#define clone_node(T,scope)\
+    $##T ret = new T;\
+    ret->phrase = phrase;\
+    ret->setScope(scope);
+
+#define clone_definition(T,scope)\
+    clone_node(T,scope)\
+    ret->name = name;\
+    ret->visibility = visibility;\
+    ret->premise = premise;
+
+#define clone_implementation(T,scope)\
+    clone_node(T,scope)\
+    ret->host = host->clone(scope);\
+    ret->name = name;\
+    ret->arg_names = arg_names;\
+    if( body ) ret->body = body->clone(ret);\
+    for( auto arg : args ) ret->args << ($element)arg->clone(ret);
+
+#define clone_callable(scope)\
+    if( ret_proto ) ret->ret_proto = ret_proto->clone(scope);\
+    for( auto arg : arg_protos ) ret->arg_protos << ($eprototype)arg->clone(scope);\
+    ret->va_arg = va_arg;
+
+#define clone_metprototype(scope)\
+    clone_callable(scope)\
+    ret->cons = cons;\
+    ret->mode = mode;\
+    ret->meta = meta;
+
+#define clone_opprototype(scope)\
+    clone_callable(scope)\
+    ret->modifier = modifier;\
+    ret->cons = cons;\
+    ret->subtitle = subtitle;
+
+#define clone_statement(T, scope)\
+    clone_node(T, scope)\
+    ret->name = name;
+
+#define clone_expression(T, scope)\
+    clone_statement(T,scope)\
+    ret->etype = etype;
+
 node::node( $scope sc ):mscope(sc) {
 
 }
 
-bool node::isscope()const {
+bool node::isscope() const {
     return false;
 }
 
@@ -20,7 +64,7 @@ bool node::setScope( $scope sc ) {
     return true;
 }
 
-$scope node::getScope()const {
+$scope node::getScope() const {
     return mscope;
 }
 
@@ -43,8 +87,11 @@ CompilerContext& node::getCompilerContext() {
 CompilerContext& signature::getCompilerContext() {
     return *context;
 }
-bool signature::is( type t )const {
+bool signature::is( type t ) const {
     return t == SIGNATURE;
+}
+$node signature::clone( $scope scope ) const {
+    throw logic_error("signature::clone(): This method is not allowed");
 }
 json signature::toJson() const {
     json obj = json::object;
@@ -104,11 +151,15 @@ bool signature::combine( $signature an ) {
     return true;
 }
 
-bool depdesc::is( type t )const {
+bool depdesc::is( type t ) const {
     return t == DEPDESC;
 }
 
-json depdesc::toJson()const {
+$node depdesc::clone( $scope scope ) const {
+    throw logic_error("depdesc::clone(): This method is not allowed");
+}
+
+json depdesc::toJson() const {
     json dep = json::object;
     dep["name"] = name.tx;
     dep["from"] = get<1>(from.extractContent());
@@ -148,8 +199,12 @@ Uri depdesc::getDocUri() {
     return getCompilerContext().getSpaceEngine().getUri(doc);
 }
 
-bool fragment::is( type t )const {
+bool fragment::is( type t ) const {
     return t == FRAGMENT;
+}
+
+$node fragment::clone( $scope scope ) const {
+    throw logic_error("fragment::clone():This method is not allowed");
 }
 
 Uri fragment::getDocUri() {
@@ -164,152 +219,405 @@ CompilerContext& fragment::getCompilerContext() {
     return *context;
 }
 
-bool eprototype::is( type t )const {
+bool eprototype::is( type t ) const {
     return t == ELEPROTO;
 }
 
-bool aliasdef::is( type t )const {
+$node eprototype::clone( $scope scope ) const {
+    clone_node(eprototype,scope);
+    ret->etype = etype;
+    ret->cons = cons;
+    ret->dtype = dtype->clone(scope);
+    return ($node)ret;
+}
+
+bool aliasdef::is( type t ) const {
     return t == ALIASDEF or t == DEFINITION;
 }
 
-bool classdef::is( type t )const {
+$node aliasdef::clone( $scope scope ) const {
+    clone_definition(aliasdef,scope);
+    if( target ) ret->target = target->clone(scope);
+    return ($node)ret;
+}
+
+bool classdef::is( type t ) const {
     return t == CLASSDEF or t == DEFINITION;
 }
 
-bool enumdef::is( type t )const {
+$node classdef::clone( $scope scope ) const {
+    clone_definition(classdef,scope);
+    ret->abstract = abstract;
+    ret->targf = targf;
+    ret->preds = preds;
+    for( auto targ : targs ) ret->targs << ($eprototype)targ->clone(targ->getScope());
+    for( auto super : supers ) ret->supers << ($nameexpr)super->clone(ret);
+    for( auto content : contents ) ret->contents << ($definition)content->clone(ret);
+    return ($node)ret;
+}
+
+bool enumdef::is( type t ) const {
     return t == ENUMDEF or t == DEFINITION;
 }
 
-bool metdef::is( type t )const {
+$node enumdef::clone( $scope scope ) const {
+    clone_definition(enumdef,scope);
+    ret->items = items;
+    return ($node)ret;
+}
+
+bool metdef::is( type t ) const {
     return t == METHODDEF or t == DEFINITION;
 }
 
-bool opdef::is( type t )const {
+$node metdef::clone( $scope scope ) const {
+    clone_definition(metdef,scope);
+    clone_metprototype(scope);
+    ret->raw = raw;
+    for( auto defval : defvals ) ret->defvals << ($exprstmt)defval->clone(scope);
+    return ($node)ret;
+}
+
+bool opdef::is( type t ) const {
     return t == OPERATORDEF or t == DEFINITION;
 }
 
-bool attrdef::is( type t )const {
+$node opdef::clone( $scope scope ) const {
+    clone_definition(opdef,scope);
+    clone_opprototype(scope);
+    ret->arg_names = arg_names;
+    for( auto defval : defvals ) ret->defvals << ($exprstmt)defval->clone(scope);
+    return ($node)ret;
+}
+
+bool attrdef::is( type t ) const {
     return t == ATTRIBUTEDEF or t == DEFINITION;
 }
 
-bool opimpl::is( type t )const {
+$node attrdef::clone( $scope scope ) const {
+    clone_definition(attrdef,scope);
+    if( proto ) ret->proto = proto->clone(scope);
+    ret->arr = arr;
+    ret->meta = meta;
+    return ($node)ret;
+}
+
+bool opimpl::is( type t ) const {
     return t == OPERATORIMPL or t == IMPLEMENTATION;
 }
 
-bool metimpl::is( type t )const {
+$node opimpl::clone( $scope scope ) const {
+    clone_implementation(opimpl,scope);
+    clone_opprototype(scope);
+    ret->subtitle = subtitle;
+    for( auto super : supers ) ret->supers << ($exprstmt)super->clone(ret);
+    for( auto init : initiate ) ret->initiate << ($exprstmt)init->clone(ret);
+    return ($node)ret;
+}
+
+bool metimpl::is( type t ) const {
     return t == METHODIMPL or t == IMPLEMENTATION;
 }
 
-bool blockstmt::is( type t )const {
+$node metimpl::clone( $scope scope ) const {
+    clone_implementation(metimpl,scope);
+    clone_metprototype(scope);
+    return ($node)ret;
+}
+
+bool blockstmt::is( type t ) const {
     return t == BLOCKSTMT or t == STATEMENT;
 }
 
-bool element::is( type t )const {
+$node blockstmt::clone( $scope scope ) const {
+    clone_statement(blockstmt,scope);
+    for( auto stmt : *this ) *ret << ($statement)stmt->clone(ret);
+    return ($node)ret;
+}
+
+bool element::is( type t ) const {
     return t == ELEMENT or t == STATEMENT;
 }
 
-bool fctrlstmt::is( type t )const {
+$node element::clone( $scope scope ) const {
+    clone_statement(element,scope);
+    if( proto ) ret->proto = proto->clone(scope);
+    if( init ) ret->init = init->clone(scope);
+    ret->array = array;
+    return ($node)ret;
+}
+
+bool fctrlstmt::is( type t ) const {
     return t == FCTRLSTMT or t == STATEMENT;
 }
 
-bool branchstmt::is( type t )const {
+$node fctrlstmt::clone( $scope scope ) const {
+    clone_statement(fctrlstmt,scope);
+    ret->action = action;
+    if( expr ) ret->expr = expr->clone(scope);
+    return ($node)ret;
+}
+
+bool branchstmt::is( type t ) const {
     return t == BRANCHSTMT or t == STATEMENT;
 }
 
-bool switchstmt::is( type t )const {
+$node branchstmt::clone( $scope scope ) const {
+    clone_statement(branchstmt,scope);
+    if( condition ) ret->condition = condition->clone(scope);
+    if( branch_true ) ret->branch_true = branch_true->clone(scope);
+    if( branch_false ) ret->branch_false = branch_false->clone(scope);
+    return ($node)ret;
+}
+
+bool switchstmt::is( type t ) const {
     return t == SWITCHSTMT or t == STATEMENT;
 }
 
-bool loopstmt::is( type t )const {
+$node switchstmt::clone( $scope scope ) const {
+    throw logic_error("switchstmt::clone(): method not ready yet");
+}
+
+bool loopstmt::is( type t ) const {
     return t == LOOPSTMT or t == STATEMENT;
 }
 
-bool assumestmt::is( type t )const {
+$node loopstmt::clone( $scope scope ) const {
+    clone_statement(loopstmt,scope);
+    ret->ltype = ltype;
+    if( con ) ret->con = con->clone(scope);
+    if( it ) ret->it = it->clone(scope);
+    if( ctrl ) ret->ctrl = ctrl->clone(ret);
+    if( body ) ret->body = body->clone(ret);
+    return ($node)ret;
+}
+
+bool assumestmt::is( type t ) const {
     return t == ASSUMESTMT or t == STATEMENT;
 }
 
-bool dostmt::is( type t )const {
+$node assumestmt::clone( $scope scope ) const {
+    clone_statement(assumestmt,scope);
+    if( expr ) ret->expr = expr->clone(scope);
+    if( proto ) ret->proto = proto->clone(scope);
+    if( branch_true ) ret->branch_true = branch_true->clone(ret);
+    if( variable ) ret->variable = variable->clone(scope);
+    if( branch_false ) ret->branch_false = branch_false->clone(scope);
+    return ($node)ret;
+}
+
+bool dostmt::is( type t ) const {
     return t == DOSTMT or t == STATEMENT;
 }
 
-// bool trystmt::is( type t )const {
+$node dostmt::clone( $scope scope ) const {
+    clone_statement(dostmt,scope);
+    ret->when = when;
+    if( task ) ret->task = task->clone(scope);
+    if( on ) ret->on = on->clone(scope);
+    if( then ) ret->then = then->clone(scope);
+    return ($node)ret;
+}
+
+// bool trystmt::is( type t ) const {
 //     return t == TRYSTMT or t == STATEMENT;
 // }
 
-// bool catchstmt::is( type t )const {
+// bool catchstmt::is( type t ) const {
 //     return t == CATCHSTMT or t == STATEMENT;
 // }
 
-// bool throwstmt::is( type t )const {
+// bool throwstmt::is( type t ) const {
 //     return t == THROWSTMT or t == STATEMENT;
 // }
 
-bool constant::is( type t )const {
+bool constant::is( type t ) const {
     return t == CONSTANT or t == EXPRESSION or t == STATEMENT;
 }
 
-bool nameexpr::is( type t )const {
+$node constant::clone( $scope scope ) const {
+    clone_expression(constant,scope);
+    ret->value = value;
+    return ($node)ret;
+}
+
+bool nameexpr::is( type t ) const {
     return t == NAMEEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool typeexpr::is( type t )const {
+$node nameexpr::clone( $scope scope ) const {
+    clone_expression(nameexpr,scope);
+    for( auto targ : targs ) ret->targs << ($eprototype)targ->clone(scope);
+    if( next ) ret->next = next->clone(scope);
+    return ($node)ret;
+}
+
+bool typeexpr::is( type t ) const {
     return t == TYPEEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool typeexpr::is_type( typeid_t t )const {
+$node typeexpr::clone( $scope scope ) const {
+    clone_expression(typeexpr,scope);
+    ret->id = id;
+    if( auto nsub = ($node)sub; sub ) {
+        ret->sub = nsub->clone(scope);
+    } else if( auto call = ($callable_type)sub; call ) {
+        $callable_type nc = new callable_type;
+        nc->phrase = call->phrase;
+        if( call->ret_proto ) nc->ret_proto = call->ret_proto->clone(scope);
+        for( auto arg : call->arg_protos ) nc->arg_protos << ($eprototype)arg->clone(scope);
+        nc->va_arg = call->va_arg;
+        ret->sub = nc;
+    }
+    return ($node)ret;
+}
+
+bool typeexpr::is_type( typeid_t t ) const {
     return (id & t) == t;
 }
 
-bool monoexpr::is( type t )const {
+bool monoexpr::is( type t ) const {
     return t == MONOEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool binexpr::is( type t )const {
+$node monoexpr::clone( $scope scope ) const {
+    clone_expression(monoexpr,scope);
+    if( operand ) ret->operand = operand->clone(scope);
+    return ($node)ret;
+}
+
+bool binexpr::is( type t ) const {
     return t == BINEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool callexpr::is( type t )const {
+$node binexpr::clone( $scope scope ) const {
+    clone_expression(binexpr,scope);
+    if( left ) ret->left = left->clone(scope);
+    if( right ) ret->right = right->clone(scope);
+    return ($node)ret;
+}
+
+bool callexpr::is( type t ) const {
     return t == CALLEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool lambdaexpr::is( type t )const {
+$node callexpr::clone( $scope scope ) const {
+    clone_expression(callexpr,scope);
+    if( callee ) ret->callee = callee->clone(scope);
+    for( auto param : params ) ret->params << ($exprstmt)param->clone(scope);
+    if( rproto ) ret->rproto = rproto->clone(scope);
+    return ($node)ret;
+}
+
+bool lambdaexpr::is( type t ) const {
     return t == LAMBDAEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool sctorexpr::is( type t )const {
+$node lambdaexpr::clone( $scope scope ) const {
+    clone_expression(lambdaexpr,scope);
+    clone_callable(scope);
+    ret->arg_names = arg_names;
+    if( body ) ret->body = body->clone(ret);
+    for( auto arg : args ) ret->args << ($element)arg->clone(ret);
+    return ($node)ret;
+}
+
+bool sctorexpr::is( type t ) const {
     return t == SCTOREXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool lctorexpr::is( type t )const {
+$node sctorexpr::clone( $scope scope ) const {
+    clone_expression(sctorexpr,scope);
+    for( auto expr : *this ) *ret << ($exprstmt)expr->clone(scope);
+    if( type_indicator ) ret->type_indicator = type_indicator->clone(scope);
+    return ($node)ret;
+}
+
+bool lctorexpr::is( type t ) const {
     return t == LCTOREXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool tctorexpr::is( type t )const {
+$node lctorexpr::clone( $scope scope ) const {
+    clone_expression(lctorexpr,scope);
+    for( auto expr : *this ) *ret << ($exprstmt)expr->clone(scope);
+    if( type_indicator ) ret->type_indicator = type_indicator->clone(scope);
+    return ($node)ret;
+}
+
+bool tctorexpr::is( type t ) const {
     return t == TCTOREXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool newexpr::is( type t )const {
+$node tctorexpr::clone( $scope scope ) const {
+    clone_expression(tctorexpr,scope);
+    for( auto expr : *this ) *ret << ($exprstmt)expr->clone(scope);
+    return ($node)ret;
+}
+
+bool newexpr::is( type t ) const {
     return t == NEWEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool delexpr::is( type t )const {
+$node newexpr::clone( $scope scope ) const {
+    clone_expression(newexpr,scope);
+    if( ntype ) ret->ntype = ntype->clone(scope);
+    if( array ) ret->array = array->clone(scope);
+    if( init ) ret->init = init->clone(scope);
+    return ($node)ret;
+}
+
+bool delexpr::is( type t ) const {
     return t == DELEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool doexpr::is( type t )const {
+$node delexpr::clone( $scope scope ) const {
+    clone_expression(delexpr,scope);
+    if( target ) ret->target = target->clone(scope);
+    ret->array = array;
+    return ($node)ret;
+}
+
+bool doexpr::is( type t ) const {
     return t == DOEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool tconvexpr::is( type t )const {
+$node doexpr::clone( $scope scope ) const {
+    clone_expression(doexpr,scope);
+    if( task ) ret->task = task->clone(scope);
+    return ($node)ret;
+}
+
+bool tconvexpr::is( type t ) const {
     return t == TCONVEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool aspectexpr::is( type t )const {
+$node tconvexpr::clone( $scope scope ) const {
+    clone_expression(tconvexpr,scope);
+    if( org ) ret->org = org->clone(scope);
+    if( proto ) ret->proto = proto->clone(scope);
+    return ($node)ret;
+}
+
+bool aspectexpr::is( type t ) const {
     return t == ASPECTEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-bool mbrexpr::is( type t )const {
+$node aspectexpr::clone( $scope scope ) const {
+    clone_expression(aspectexpr,scope);
+    if( host ) ret->host = host->clone(scope);
+    ret->title = title;
+    return ($node)ret;
+}
+
+bool mbrexpr::is( type t ) const {
     return t == MBREXPR or t == EXPRESSION or t == STATEMENT;
+}
+
+$node mbrexpr::clone( $scope scope ) const {
+    clone_expression(mbrexpr,scope);
+    if( host ) ret->host = host->clone(scope);
+    if( nav ) ret->nav = nav->clone(scope);
+    return ($node)ret;
 }
 
 SyntaxContext::state::state(int _s,int _c):s(_s),c(_c) {
@@ -373,7 +681,7 @@ void SyntaxContext::redu(int c, int n ) {
     it.r.insert(std::move(node),it.pos);
 }
 
-$callable_type callable::getType()const {
+$callable_type callable::getType() const {
     auto call = new callable_type;
     call->ret_proto = ret_proto;
     call->arg_protos = arg_protos;
@@ -677,7 +985,7 @@ $aliasdef SyntaxContext::constructAliasDefinition( $scope scope ) {
             } break;
         case 4:
             if( auto nm = constructNameExpression(scope, true); nm ) {
-                ref->tagret = nm;
+                ref->target = nm;
                 redu(4, VN::ALIASDEF );
             } else {
                 return nullptr;
@@ -1476,6 +1784,8 @@ $blockstmt SyntaxContext::constructBlockStatement( $scope scope ) {
 $element SyntaxContext::constructElementStatement( $scope scope, bool autowire ) {
     $element ref = new element;
     ref->setScope(scope);
+    ref->proto = new eprototype;
+    ref->proto->setScope(scope);
 
     enter();
     movi(1,0);
@@ -1483,11 +1793,11 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
         case 1:
             if( it->is(CT::ELETYPE,VT::VAR) ) {
                 switch( it->id ) {
-                    case VT::VAR: ref->etype = eprototype::var; break;
-                    case VT::OBJ: ref->etype = eprototype::obj; break;
-                    case VT::PTR: ref->etype = eprototype::ptr; break;
-                    case VT::REF: ref->etype = eprototype::ref; break;
-                    case VT::REL: ref->etype = eprototype::rel; break;
+                    case VT::VAR: ref->proto->etype = eprototype::var; break;
+                    case VT::OBJ: ref->proto->etype = eprototype::obj; break;
+                    case VT::PTR: ref->proto->etype = eprototype::ptr; break;
+                    case VT::REF: ref->proto->etype = eprototype::ref; break;
+                    case VT::REL: ref->proto->etype = eprototype::rel; break;
                 }
                 movi(2);
             } else {
@@ -1495,8 +1805,8 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
             } break;
         case 2:
             if( it->is(VT::CONST) ) {
-                if( ref->cons ) return diagnostics("27", *it), nullptr;
-                ref->cons = *it;
+                if( ref->proto->cons ) return diagnostics("27", *it), nullptr;
+                ref->proto->cons = *it;
                 stay();
             } else if( it->is(VT::L::LABEL) ) {
                 ref->name = *it;
@@ -1508,7 +1818,7 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
             if( it->is(VT::O::ASSIGN) ) {
                 movi(4);
             } else if( it->is(VT::O::SC::SEMI) ) {
-                if( ref->dtype and !ref->dtype->is_type(UnknownType) )
+                if( ref->proto->dtype and !ref->proto->dtype->is_type(UnknownType) )
                     redu(-3, VN::ELEMENTSTMT);
                 else 
                     return diagnostics("31", *it), nullptr;
@@ -1518,12 +1828,12 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
                 if( autowire ) return diagnostics("71", *it), nullptr;
                 stay();
             } else if( it->is(VT::O::SC::O::L) ) {
-                if( ref->dtype ) redu(-3, VN::ELEMENTSTMT);
+                if( ref->proto->dtype ) redu(-3, VN::ELEMENTSTMT);
                 if( autowire ) return diagnostics("70", *it), nullptr;
                 movi(5);
-            } else if( !ref->dtype ) {
-                ref->dtype = constructTypeExpression(scope,true);
-                if( !ref->dtype ) return nullptr;
+            } else if( !ref->proto->dtype ) {
+                ref->proto->dtype = constructTypeExpression(scope,true);
+                if( !ref->proto->dtype ) return nullptr;
             } else {
                 if( autowire ) return diagnostics("21", VT::O::SC::COLON, *it), nullptr;
                 else return diagnostics("21", VT::O::SC::SEMI, *it), nullptr;
@@ -1561,7 +1871,7 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
             return internal_error, nullptr;
     }
 
-    ref->phrase = *it;
+    ref->proto->phrase = *it;
     ref->phrase = *it;
     return ref;
 }
@@ -2512,7 +2822,12 @@ $typeexpr SyntaxContext::constructTypeExpression( $scope scope, bool absorb ) {
             } break;
         case 7:
             if( it->is(VT::O::SC::C::A) ) {
-                redu(1, VN::FINAL);
+                if( call->ret_proto ) redu(1, VN::FINAL);
+                else if( auto p = constructElementPrototype(scope, true); p )  {
+                    call->ret_proto = p;
+                } else {
+                    return nullptr;
+                }
             } else if( it->is(VT::O::GENERATE) ) {
                 stay();
                 if( call->ret_proto ) {

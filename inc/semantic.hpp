@@ -34,6 +34,7 @@ struct module : node {
         module( SemanticContext& context );
         virtual ~module() = default;
         bool is( type )const override;
+        $node clone( $scope scope )const override;
         this_is_scope
 
         $module getModule()override;
@@ -267,6 +268,33 @@ class SemanticContext {
          * @return $classdef : 若成功返回用例类定义，若失败，返回空
          */
         static $classdef GetTemplateUsage( $classdef def, eprototypes targs );
+
+        /**
+         * @method IsIdentical : 判断元素原型是否完全一致
+         * @desc :
+         *  判断两个元素原型是否完全一致
+         *  元素原型一致的条件是，元素类型一致，约束一致，数据类型一致
+         * @param a : 第一个元素原型
+         * @param b : 第二个元素原型
+         * @param u : 未知数据类型是否判定为相同
+         * @return bool : 若元素原型一致则返回true
+         */
+        static bool IsIdentical( $eprototype a, $eprototype b, bool u = false );
+
+        /**
+         * @member IsIdentical : 判断数据类型是否一致
+         * @desc :
+         *  判断两个数据类型是否一致
+         *  不能解析的数据类型不一致
+         *  未知数据类型与任何数据类型不一致，包括未知数据类型
+         *  参数u所代表的语义不能在callable_type的参数和返回原形之间传递
+         *  函数内部递归检查callable_type是否相同时，会认为同一位置的两个参数或返回原形，若都是Unknown则判定为相同
+         * @param a : 第一个数据类型
+         * @param b : 第二个数据类型
+         * @param u : 未知数据类型是否判定为相同
+         * @return bool : 若数据类型一致则返回true
+         */
+        static bool IsIdentical( $typeexpr a, $typeexpr b, bool u = false );
 };
 
 }
