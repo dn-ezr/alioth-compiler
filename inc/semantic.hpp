@@ -105,6 +105,11 @@ class SemanticContext {
          * @member dep_cache : 依赖关系缓冲 */
         map<$depdesc, $module> dep_cache;
 
+        /**
+         * @member searching_layers : 搜索层
+         * @desc : 用于检查循环搜索的缓冲 */
+        chainz<$scope> searching_layers;
+
     public:
 
         SemanticContext( CompilerContext& context, Diagnostics& diagnostics_repo );
@@ -201,7 +206,8 @@ class SemanticContext {
          * @param paddings : 挂起别名，当搜索别名时，为了避免循环别名造成无限递归，要将正在搜索的别名挂起
          * @return everything : 查询结果，遭遇错误就返回空集
          *  诊断信息会沿着语法结构上传到模块诊断容器 */
-        static everything Reach( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings);
+        static everything Reach( $nameexpr name, SearchOptions opts, $scope scope);
+        static everything $( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr );
 
         /**
          * @static-method ReachClass : 尝试抵达一个类定义
@@ -211,8 +217,7 @@ class SemanticContext {
          * @param paddings : 挂起别名，当搜索别名时，为了避免循环别名造成无限递归，要将正在搜索的别名挂起
          * @return everything : 查询结果，遭遇错误就返回空集
          *  诊断信息会沿着语法结构上传到模块诊断容器 */
-        static $classdef ReachClass( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr, aliasdefs padding = {} );
-        static everything $( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr, aliasdefs paddings = {} );
+        static $classdef ReachClass( $nameexpr name, SearchOptions opts = SearchOption::ANY|SearchOption::ALL, $scope scope = nullptr );
 
         /**
          * @static-method ReductPrototype : 归约一个元素原型
@@ -235,7 +240,7 @@ class SemanticContext {
          * @return : 若推算成功返回数据类型自身的引用，若推算失败则返回空代理
          */
         static $typeexpr ReductTypeexpr( $typeexpr type, $eprototype proto );
-        static $typeexpr $( $typeexpr type, $eprototype proto = nullptr );
+        static $typeexpr $( $typeexpr type, $eprototype proto = nullptr);
         
         /**
          * @static-method GetDefinition : 获取实现对应的定义 */
@@ -282,7 +287,7 @@ class SemanticContext {
         static bool IsIdentical( $eprototype a, $eprototype b, bool u = false );
 
         /**
-         * @member IsIdentical : 判断数据类型是否一致
+         * @method IsIdentical : 判断数据类型是否一致
          * @desc :
          *  判断两个数据类型是否一致
          *  不能解析的数据类型不一致
@@ -295,6 +300,26 @@ class SemanticContext {
          * @return bool : 若数据类型一致则返回true
          */
         static bool IsIdentical( $typeexpr a, $typeexpr b, bool u = false );
+
+        /**
+         * @method GetInheritTable : 获取继承表
+         * @desc :
+         *  通过Reach方法获取继承关系树，若存在循环继承则自动忽略
+         * @param def : 要获取继承表的定义
+         * @param paddings : 用于防止无限递归的挂载表
+         * @return classdefs : 按照书写顺序排列的继承关系
+         */
+        static classdefs GetInheritTable( $classdef def, classdefs paddings = {} );
+
+    protected:
+        class searching_layer {
+            private:
+                chainz<$scope>* layers;
+            public:
+                searching_layer( $scope scope, $nameexpr name);
+                ~searching_layer();
+                operator bool()const;
+        };
 };
 
 }

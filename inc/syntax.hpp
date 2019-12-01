@@ -1167,17 +1167,12 @@ struct assumestmt : public statement {
         $exprstmt expr;
 
         /**
-         * @member proto : 测试目标元素原型 */
-        $eprototype proto;
+         * @member variable : 假设的目标原型，和假设成立时产生的变量 */
+        $element variable;
 
         /**
          * @member branch_true : 假设成立分支 */
         $statement branch_true;
-
-        /**
-         * @member variable : 假设成立时，产生的新变量实体
-         * @member 应当由语义分析模块填写 */
-        $element variable;
 
         /**
          * @member branch_false : 假设不成立分支

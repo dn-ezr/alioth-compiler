@@ -189,8 +189,21 @@ bool SemanticContext::validateModuleDefinition( $module mod ) {
 bool SemanticContext::validateClassDefinition(  $classdef cls ) {
     bool success = true;
 
-    /** 忽略模板类,只有模板类用例才会被检查 */
-    if( cls->targf.size() and !cls->targs.size() ) return true;
+    /** 为剩余部分忽略模板类,只有模板类用例才会被检查 */
+    if( cls->targf.size() ) {
+        /** 模板类需要检查谓词参数 */
+        for( auto pred : cls->preds )
+            for( auto prei : pred ) if( prei.type ) {
+                if( !$(prei.type) ) {
+                    success = false;
+                    diagnostics[cls->getDocUri()]("107", prei.vn);
+                } else if( prei.type->is_type(PointerTypeMask) ) {
+                    success = false;
+                    diagnostics[cls->getDocUri()]("108", prei.vn);
+                }
+            }
+        if( !cls->targs.size() ) return success;
+    }
 
     /** 检查基类是否可达 */
     for( auto super : cls->supers ) {
@@ -235,9 +248,6 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
                 success = false;
             }
         }
-
-        /** 检查谓词 */
-        //[TODO]
     }
 
     /** 检查循环包含 */
@@ -616,11 +626,13 @@ $classdef SemanticContext::GetThisClassDef( $node n ) {
     }
 }
 
-everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
+everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope scope ) {
     if( !name ) return nothing;
     if( !scope ) scope = name->getScope();
     while( scope and (!scope->isscope() or scope->is(node::FRAGMENT)) ) scope = scope->getScope();
     if( !scope or !scope->isscope() ) return nothing;
+    auto layer = searching_layer(scope, name);
+    if( !layer ) return nothing;
 
     auto module = scope->getModule();
     auto& semantic = module->sctx;
@@ -696,13 +708,27 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
     }
 
     /** 处理模板类用例的情况 */
-    if( name->targs.size() ) {
+    if( name->targs.size() and results.size() ) {
         if( results.size() != 1 ) return diagnostics[name->getDocUri()]("90", name->name), nothing;
         auto def = ($classdef)results[0];
         if( !def ) return diagnostics[name->getDocUri()]("90", name->name), nothing;
         auto usage = GetTemplateUsage( def, name->targs );
         if( !usage ) return nothing;
         results[0] = usage;
+    }
+
+    /** 处理别名，将搜索到的别名解析 */
+    for( auto i = 0; i < results.size(); i++ ) if( auto alias = ($aliasdef)results[i]; alias ) {
+
+        /** 解析别名引用 */
+        semantic.searching_layers.pop();
+        auto res = Reach(alias->target, 
+            SearchOption::ALL|SearchOption::ANY, 
+            alias->getScope() );
+        semantic.searching_layers.push(scope);
+        if( res.size() == 0 ) return nothing;
+        results += res;
+        results.remove(i--);
     }
 
     if( results.size() != 0 and name->next ) {
@@ -713,7 +739,8 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         auto sc = ($node)results[0];
         if( !sc or !sc->isscope() )
             return diagnostics[name->getDocUri()]("89", name->name), nothing;
-        return Reach( name->next, SearchOption::ANY, sc, paddings );
+        /** 深入作用域搜索 */
+        return Reach( name->next, SearchOption::ANY, sc );
     } else if( results.size() == 0 ) {
         /** 处理当前作用域没有搜索到当前目标 */
         if( auto sc = ($module)scope; sc ) {
@@ -722,57 +749,38 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             /** 当前作用域没有目标，尝试搜索基类 */
             if( opts & SearchOption::SUPER )
                 for( auto super : sc->supers ) {
-                    auto temp = Reach(super, SearchOption::ALL|SearchOption::ANY, super->getScope(), paddings );
+                    auto temp = Reach(super, SearchOption::ALL|SearchOption::ANY, super->getScope() );
                     if( temp.size() != 1 ) continue; // 基类不唯一或不可达的错误在类语义检查中被报告
                     auto def = ($classdef)temp[0];
                     if( !def ) continue; // 基类不可达的错误在语义分析中报告
-                    results += Reach(name, SearchOption::SUPER|SearchOption::MEMBERS, def, paddings );
+                    results += Reach(name, SearchOption::SUPER|SearchOption::MEMBERS, def );
                 }
             /** 若当前作用域没有目标，尝试搜索父作用域 */
             if( opts & SearchOption::PARENT ) {
-                results += Reach(name, SearchOption::PARENT|SearchOption::INNERS, sc->getScope(), paddings);
+                results += Reach(name, SearchOption::PARENT|SearchOption::INNERS, sc->getScope());
             }
         } else if( auto sc = ($implementation)scope; sc ) {
             if( auto def = GetDefinition(sc); def and (SearchOption::PARENT&opts) ) {
-                results += Reach(name, SearchOption::ANY|SearchOption::ALL, def, paddings);
+                results += Reach(name, SearchOption::ANY|SearchOption::ALL, def);
             }
         } else if( (opts & SearchOption::PARENT) and scope->getScope() ) {
-            results += Reach(name, SearchOption::ALL|SearchOption::ANY, scope->getScope(), paddings );
+            results += Reach(name, SearchOption::ALL|SearchOption::ANY, scope->getScope() );
         } else {
             //[Nothing to be done]
         }
     }
 
-    /** 处理别名，将搜索到的别名解析 */
-    for( auto i = 0; i < results.size(); i++ ) if( auto alias = ($aliasdef)results[i]; alias ) {
-
-        /** 处理循环引用的情况 */
-        for( auto padding : paddings ) if( padding == alias ) {
-            diagnostics[alias->getDocUri()]("87", alias->phrase);
-            return nothing;
-        }
-
-        /** 解析别名引用 */
-        auto res = Reach(alias->target, 
-            SearchOption::ALL|SearchOption::ANY, 
-            alias->getScope(), 
-            paddings+aliasdefs{alias} );
-        if( res.size() == 0 ) return nothing;
-        results += res;
-        results.remove(i--);
-    }
-
     return results;
 }
 
-$classdef SemanticContext::ReachClass( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
-    auto res = Reach(name, opts, scope, paddings);
-    if( res.size() != 1 ) return nullptr;
-    return ($classdef)res[0];
+everything SemanticContext::$( $nameexpr name, SearchOptions opts, $scope scope ) {
+    return Reach( name, opts, scope );
 }
 
-everything SemanticContext::$( $nameexpr name, SearchOptions opts, $scope scope, aliasdefs paddings ) {
-    return Reach( name, opts, scope, paddings );
+$classdef SemanticContext::ReachClass( $nameexpr name, SearchOptions opts, $scope scope ) {
+    auto res = Reach(name, opts, scope);
+    if( res.size() != 1 ) return nullptr;
+    return ($classdef)res[0];
 }
 
 $eprototype SemanticContext::ReductPrototype( $eprototype proto ) {
@@ -865,7 +873,16 @@ $classdef SemanticContext::GetTemplateUsage( $classdef def, eprototypes targs ) 
     else if( def->targs.size() != 0 ) return internal_error, nullptr;
 
     /** 检查模板参数列表 */
-    if( targs.size() != def->targf.size() ) return diagnostics[targs[-1]->getDocUri()]("104", targs[-1]->phrase), nullptr;
+    if( targs.size() != def->targf.size() ) {
+        return diagnostics[targs[-1]->getDocUri()]("104", targs[-1]->phrase), nullptr;
+    } else {
+        bool success = true;
+        for( auto targ : targs ) if( !$(targ) ) {
+            success = false;
+            diagnostics[targ->getDocUri()]("110", targ->phrase);
+        }
+        if( !success ) return nullptr;
+    }
 
     /** 检查已经存在的模板用例 */
     for( auto usage : def->usages ) {
@@ -879,16 +896,55 @@ $classdef SemanticContext::GetTemplateUsage( $classdef def, eprototypes targs ) 
         if( same ) return usage;
     }
 
-    /** 检查谓词条件 */
-    set<int> premise;
-    //[TODO]
-
     /** 产生模板用例 */
     auto usage = ($classdef)def->clone(def->getScope());
+    usage->targs = targs;
+
+    /** 检查谓词条件 */
+    set<int> premise;
+    for( int i = 0; i < def->preds.size(); i++ ) {
+        auto pred = def->preds[i];
+        bool verdict = true;
+        for( auto pi : pred ) {
+            $eprototype targ;
+            for( auto i = 0; i < def->targf.size(); i++ ) if( def->targf[i] == pi.targ ) targ = targs[i];
+            if( !targ ) return internal_error, nullptr;
+            switch( pi.rule ) {
+                case 1: if( targ->etype == eprototype::obj) verdict = false; break;
+                case 2: if( targ->etype == eprototype::ptr) verdict = false; break;
+                case 3: if( targ->etype == eprototype::ref) verdict = false; break;
+                case 4: if( targ->etype == eprototype::rel) verdict = false; break;
+                case 5: if( targ->etype != eprototype::obj) verdict = false; break;
+                case 6: if( targ->etype != eprototype::ptr) verdict = false; break;
+                case 7: if( targ->etype != eprototype::ref) verdict = false; break;
+                case 8: if( targ->etype != eprototype::rel) verdict = false; break;
+                case 9: if( targ->dtype->is_type(PointerTypeMask) ) verdict = false; break;
+                case 10:if( !targ->dtype->is_type(PointerTypeMask) ) verdict = false; break;
+                case 11: {
+                    if( !$(pi.type) or !pi.type->is_type(StructType) or !targ->dtype->is_type(StructType) ) break;
+                    auto table = GetInheritTable(($classdef)targ->dtype->sub) << ($classdef)targ->dtype->sub;
+                    for( auto super : table ) {
+                        if( pi.type->sub == super ) {verdict = false; break;}
+                    }
+                } break;
+            }
+        }
+        if( verdict ) premise.insert(i);
+    }
+    if( def->preds.size() and premise.empty() )
+        return diagnostics[targs[0]->getDocUri()]("109", targs[0]->phrase, targs[-1]->phrase), nullptr;
 
     /** 根据谓词删除前提不成立的定义 */
-    //[TODO]
+    for( auto i = 0; i < usage->contents.size(); i++ ) {
+        auto content = usage->contents[i];
+        if( content->premise.size() ) {
+            bool found = false;
+            for( auto i : content->premise ) if( premise.count(i) ){ found = true; break;}
+            if( !found ) usage->contents.remove(i--);
+        }
+    }
 
+    if( !context.validateClassDefinition(usage) ) return nullptr;
     def->usages << usage;
 
     return usage;
@@ -926,6 +982,50 @@ bool SemanticContext::IsIdentical( $typeexpr a, $typeexpr b, bool u ) {
     } else {
         return true;
     }
+}
+
+classdefs SemanticContext::GetInheritTable( $classdef def, classdefs paddings ) {
+    classdefs table;
+    
+    for( auto padding : paddings ) if( def == padding ) return {};
+
+    for( auto super : def->supers ) {
+        auto res = $(super);
+        if( res.size() != 1 ) continue;
+        if( auto targ = ($eprototype)res[0]; targ ) {
+            if( $(targ) and targ->dtype->is_type(StructType) ) {
+                res[0] = targ->dtype->sub;
+            }
+        }
+        if( auto cls = ($classdef)res[0]; cls ) {
+            table += GetInheritTable(cls, paddings + classdefs{def});
+            table << cls;
+        }
+    }
+
+    return table;
+}
+
+SemanticContext::searching_layer::searching_layer( $scope scope, $nameexpr name ):layers(nullptr) {
+    if( !scope ) return;
+    auto module = scope->getModule();
+    auto& context = module->sctx;
+    auto& diagnostics  = context.diagnostics;
+    for( auto layer : context.searching_layers ) if( scope == layer ) {
+        diagnostics[name->getDocUri()]("111", name->name);
+        return;
+    }
+    context.searching_layers.push(scope);
+    layers = &context.searching_layers;
+    return;
+}
+
+SemanticContext::searching_layer::~searching_layer() {
+    if( layers ) layers->pop();
+}
+
+SemanticContext::searching_layer::operator bool()const {
+    return layers;
 }
 
 }

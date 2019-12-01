@@ -399,9 +399,8 @@ bool assumestmt::is( type t ) const {
 $node assumestmt::clone( $scope scope ) const {
     clone_statement(assumestmt,scope);
     if( expr ) ret->expr = expr->clone(scope);
-    if( proto ) ret->proto = proto->clone(scope);
-    if( branch_true ) ret->branch_true = branch_true->clone(ret);
     if( variable ) ret->variable = variable->clone(scope);
+    if( branch_true ) ret->branch_true = branch_true->clone(ret);
     if( branch_false ) ret->branch_false = branch_false->clone(scope);
     return ($node)ret;
 }
@@ -972,8 +971,8 @@ $aliasdef SyntaxContext::constructAliasDefinition( $scope scope ) {
                 else ref->visibility = *it;
                 stay(); // 以前这里是直接报错退出的，现在的设计希望报告尽可能多的错误
             } else if( it->is(VT::L::LABEL) ) {
-                movi(3);
                 ref->name = *it;
+                movi(3);
             } else {
                 return diagnostics("28", *it ), nullptr;
             } break;
@@ -1166,6 +1165,9 @@ $classdef SyntaxContext::constructClassDefinition( $scope scope ) {
             } break;
         case 12:
             if( it->is(VT::L::LABEL) ) {
+                bool found = false;
+                for( auto targ : ref->targf ) if( *it == targ ) {found = true; break;}
+                if( !found ) return diagnostics("106", *it), nullptr;
                 pred.construct(-1).targ = *it;
                 movi(13);
             } else if( it->is(VN::ITEM) ) {
@@ -2252,9 +2254,10 @@ $assumestmt SyntaxContext::constructAssumeStatement( $scope scope ) {
         case 4:
             if( it->is(VN::ELEPROTO) ) {
                 movi(5);
-            } else if( auto proto = constructElementPrototype(scope, false); proto ) {
-                if( proto->dtype->is_type(UnknownType) ) return diagnostics("31", *it), nullptr;
-                ref->proto = proto;
+            } else if( auto var = constructElementStatement(scope, false); var ) {
+                if( var->proto->dtype->is_type(UnknownType) ) return diagnostics("31", *it), nullptr;
+                if( var->init ) return diagnostics("105", var->init->phrase), nullptr;
+                ref->variable = var;
             } else {
                 return nullptr;
             } break;
