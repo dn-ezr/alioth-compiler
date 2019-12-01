@@ -1300,12 +1300,20 @@ $enumdef SyntaxContext::constructEnumerateDefinition( $scope scope ) {
         case 4:
             if( it->is(VT::L::LABEL) ) {
                 for( auto& t : ref->items ) {
-                    if( t.tx == it->tx ) {
+                    if( t->name == it->tx ) {
                         diagnostics("44", *it);
                         diagnostics[-1]( diagnostics.prefix(), "45", *it);
+                        return nullptr;
                     }
                 }
-                ref->items << *it;
+                $constant c = new constant();
+                c->phrase = *it;
+                c->setScope(ref);
+                c->etype = exprstmt::constant;
+                c->name = c->value = *it;
+                c->value.id = VT::L::I::N;
+                c->value.tx = to_string(ref->items.size());
+                ref->items << c;
                 stay();
             } else if( it->is(VT::O::SC::C::S) ) {
                 redu(4, VN::ENUMDEF);
@@ -1601,13 +1609,13 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 if( !constructParameterList(ref, *ref, ref->arg_names) ) return nullptr;
             } break;
         case 5:
-            if( ref->name.is(PVT::SCTOR,PVT::CCTOR,PVT::MCTOR,PVT::LCTOR) ) {
+            if( it->is(VN::BLOCKSTMT) ) {
+                redu(5, VN::OPIMPL);
+                ref->body->phrase = *it;
+            } else if( ref->name.is(PVT::SCTOR,PVT::CCTOR,PVT::MCTOR,PVT::LCTOR) ) {
                 ref->body = new blockstmt;
                 ref->body->setScope(ref);
                 movi(6,0);
-            } else if( it->is(VN::BLOCKSTMT) ) {
-                redu(5, VN::OPIMPL);
-                ref->body->phrase = *it;
             } else if( auto stmt = constructBlockStatement(ref); stmt ) {
                 ref->body = stmt;
             } else {
@@ -1653,8 +1661,6 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 if( !it->is(VT::L::LABEL) ) return diagnostics("29", *it), nullptr;
             } else if( it->is(VT::O::SC::SEMI) ) {
                 movi(9);
-            } else if( it->is(VN::BLOCKSTMT) ) {
-                redu(1, VN::BLOCKSTMT);
             } else {
                 return diagnostics("21", VT::O::SC::C::S, *it), nullptr;
             } break;
@@ -1662,7 +1668,7 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
             if( it->is( CT::STATEMENT, VT::O::SC::SEMI ) ) {
                 stay();
             } else if( it->is(VT::O::SC::C::S) ) {
-                redu(1, VN::BLOCKSTMT);
+                redu(4, VN::BLOCKSTMT);
             } else if( auto stmt = constructStatement(ref->body, false, true); stmt ) {
                 *ref->body << stmt;
             } else {
@@ -2372,10 +2378,15 @@ $loopstmt SyntaxContext::constructLoopStatement( $scope scope ) {
                 return diagnostics("21", VT::O::SC::O::A, *it), nullptr;
             } break;
         case 9:
-            if( it->is(VN::ELEMENTSTMT) ) {
+            if( it->is(VN::ELEMENTSTMT,VN::EXPRSTMT) ) {
                 movi(10);
-            } else if( auto ele = constructElementStatement(ref,false); ele ) {
-                ref->it = ele;
+            } else if( it->is(VT::O::SC::SEMI) ) {
+                movi(10,0);
+            } else if( it->is(CT::ELETYPE,VT::VAR,VT::CONST) ) {
+                ref->it = constructElementStatement(ref,false);
+                if( !ref->it ) return nullptr;
+            } else if( auto expr = constructExpressionStatement(scope); expr ) {
+                ref->it = expr;
             } else {
                 return nullptr;
             } break;
@@ -2388,6 +2399,8 @@ $loopstmt SyntaxContext::constructLoopStatement( $scope scope ) {
         case 11:
             if( it->is(VN::EXPRSTMT) ) {
                 movi(12);
+            } else if( it->is(VT::O::SC::SEMI) ) {
+                movi(12,0);
             } else if( auto expr = constructExpressionStatement(ref); expr ) {
                 ref->con = expr;
             } else {
@@ -2402,6 +2415,8 @@ $loopstmt SyntaxContext::constructLoopStatement( $scope scope ) {
         case 13:
             if( it->is(VN::EXPRSTMT) ) {
                 movi(14);
+            } else if( it->is(VT::O::SC::C::A) ) {
+                movi(14,0);
             } else if( auto expr = constructExpressionStatement(ref); expr ) {
                 ref->ctrl = expr;
             } else {
@@ -3430,7 +3445,7 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens&
                 *cur_expr = expr;
             } else {
                 return false;
-            }
+            } break;
         default:
             return internal_error, false;
     }

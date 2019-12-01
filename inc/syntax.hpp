@@ -778,7 +778,7 @@ struct enumdef : public definition {
         /**
          * @member item : 枚举单元
          * @desc : 枚举单元的定义，顺序不能被打乱 */
-        tokens items;
+        constantes items;
 
     public:
 

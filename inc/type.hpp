@@ -51,6 +51,7 @@ constexpr typeid_t Int32Type =                 (TypeIdBitL << 0x12) | SignedInte
 constexpr typeid_t Int64Type =                 (TypeIdBitL << 0x13) | SignedIntegerTypeMask;
 constexpr typeid_t Float32Type =               (TypeIdBitL << 0x14) | FloatPointTypeMask;
 constexpr typeid_t Float64Type =               (TypeIdBitL << 0x15) | FloatPointTypeMask;
+constexpr typeid_t EnumType =                  (TypeIdBitL << 0x16) | SimpleTypeMask;
 
 }
 

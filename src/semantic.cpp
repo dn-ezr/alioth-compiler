@@ -240,7 +240,13 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
 
             string dname = GetBinarySymbol(($node)def);
             string pname = GetBinarySymbol(($node)prv);
-            if( def->is(node::METHODDEF) and prv->is(node::METHODDEF) ) repeat = dname == pname;
+            if( def->is(node::METHODDEF) and prv->is(node::METHODDEF) ) {
+                repeat = (dname == pname);
+            } else if( def->is(node::OPERATORDEF) and prv->is(node::OPERATORDEF) ) {
+                auto odef = ($opdef)def, oprv = ($opdef)prv;
+                if( !odef->modifier.is(VT::DELETE) and !oprv->modifier.is(VT::DELETE) )
+                    repeat = (dname == pname);
+            }
 
             if( repeat ) {
                 diagnostics[def->getDocUri()]("98", def->name, dname)
@@ -396,7 +402,7 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
                 diagnostics[def->getDocUri()]("100", def->name);
             }
     } else if( def->name.is(PVT::SCTOR,PVT::LCTOR) ) {
-        if( def->modifier ) {
+        if( def->modifier and !def->modifier.is(VT::DEFAULT) ) {
             success = false;
             diagnostics[def->getDocUri()]("99", def->modifier);
         }
@@ -476,6 +482,7 @@ string SemanticContext::GetBinarySymbol( $node s ) {
     string symbol;
     auto mod = s->getModule();
     auto src = s;
+    bool skip = false;
 
     if( mod ) {
         if( mod->sctx.symbol_cache.count(s) )
@@ -483,14 +490,24 @@ string SemanticContext::GetBinarySymbol( $node s ) {
     }
 
     if( auto impl = ($implementation)s; impl ) {
-        auto tc = GetThisClassDef(($node)impl);
-        if( !tc ) return "<error-1>";
-        symbol = tc->name.tostr();
-        for( auto d = tc->getScope(); d != nullptr; d = d->getScope() ) {
-            if( auto cd = ($classdef)d; cd ) symbol = (string)cd->name + "::" + symbol;
-            else if( auto md = ($module)d; md ) symbol = (string)md->sig->name + "::" + symbol;
+        if( auto def = GetDefinition(impl); def ) {
+            src = def;
+        } else {
+            auto tc = GetThisClassDef(($node)impl);
+            if( !tc ) return "<error-1>";
+            symbol = tc->name.tostr();
+            for( auto d = tc->getScope(); d != nullptr; d = d->getScope() ) {
+                if( auto cd = ($classdef)d; cd ) symbol = (string)cd->name + "::" + symbol;
+                else if( auto md = ($module)d; md ) symbol = (string)md->sig->name + "::" + symbol;
+            }
         }
         /** 接下来的工作在原型处处理 */
+    }
+    if( auto met = ($metdef)src; met and met->raw ) {
+        auto [suc,dat,diag] = met->raw.extractContent();
+        if( !suc ) return "<error-8>";
+        symbol = dat;
+        skip = true;
     } else if( auto def = ($definition)src; def ) {
         symbol = def->name.tostr();
         for( auto d = def->getScope(); d != nullptr; d = d->getScope() ) {
@@ -557,36 +574,38 @@ string SemanticContext::GetBinarySymbol( $node s ) {
         symbol = stmt->name;
     }
 
-    /** 处理方法原型和运算符原型 */
-    if( auto met = dynamic_cast<metprototype*>(&*src); met ) {
-        string prefix = "method";
-        if( met->cons ) prefix += ".const";
-        if( met->meta ) prefix += ".meta";
-        symbol = prefix + ":" + symbol;
-    } else if( auto op = dynamic_cast<opprototype*>(&*src); op ) {
-        string prefix = "operator";
-        if( op->cons ) prefix += ".const";
-        if( op->modifier ) prefix += "." + (string)op->modifier;
-        symbol = "operator:" + symbol;
-        if( op->subtitle ) symbol += "." + (string)op->subtitle;
-    }
+    if( !skip ) {
+        /** 处理方法原型和运算符原型 */
+        if( auto met = dynamic_cast<metprototype*>(&*src); met ) {
+            string prefix = "method";
+            if( met->cons ) prefix += ".const";
+            if( met->meta ) prefix += ".meta";
+            symbol = prefix + ":" + symbol;
+        } else if( auto op = dynamic_cast<opprototype*>(&*src); op ) {
+            string prefix = "operator";
+            if( op->cons ) prefix += ".const";
+            if( op->modifier and !op->modifier.is(VT::DEFAULT) ) prefix += "." + (string)op->modifier;
+            symbol = "operator:" + symbol;
+            if( op->subtitle ) symbol += "." + (string)op->subtitle;
+        }
 
-    /** 处理可调用的情况 */
-    auto call = ($callable_type)src;
-    if( auto cal = dynamic_cast<callable*>(&*src); cal ) call = cal->getType();
-    if( call ) {
-        symbol += "(";
-        for( int i = 0; i < call->arg_protos.size(); i++ ) {
-            if( i != 0 ) symbol += ",";
-            symbol += GetBinarySymbol(($node)call->arg_protos[i]);
+        /** 处理可调用的情况 */
+        auto call = ($callable_type)src;
+        if( auto cal = dynamic_cast<callable*>(&*src); cal ) call = cal->getType();
+        if( call ) {
+            symbol += "(";
+            for( int i = 0; i < call->arg_protos.size(); i++ ) {
+                if( i != 0 ) symbol += ",";
+                symbol += GetBinarySymbol(($node)call->arg_protos[i]);
+            }
+            if( call->va_arg ) {
+                symbol += "...";
+                if( call->va_arg.is(VT::L::LABEL) ) symbol += call->va_arg;
+            }
+            if( call->ret_proto ) symbol += "=>" + GetBinarySymbol(($node)call->ret_proto);
+            symbol += ")";
+            symbol += GetBinarySymbol(($node)call->ret_proto);
         }
-        if( call->va_arg ) {
-            symbol += "...";
-            if( call->va_arg.is(VT::L::LABEL) ) symbol += call->va_arg;
-        }
-        if( call->ret_proto ) symbol += "=>" + GetBinarySymbol(($node)call->ret_proto);
-        symbol += ")";
-        symbol += GetBinarySymbol(($node)call->ret_proto);
     }
 
     if( mod ) mod->sctx.symbol_cache[s] = symbol;
@@ -598,20 +617,30 @@ $definition SemanticContext::GetDefinition( $implementation impl ) {
     auto tc = GetThisClassDef(($node)impl);
     if( !tc ) return nullptr;
 
-    auto symbol = GetBinarySymbol(($node)impl);
     for( auto def : tc->contents ) {
-        if( auto met = ($metdef)def; met ) {
-            auto defsymbol = GetBinarySymbol(($node)met);
-            if( defsymbol == symbol ) return def;
-        } else if( auto op = ($opdef)def; op ) {
-            auto defsymbol = GetBinarySymbol(($node)op);
-            if( defsymbol == symbol ) return def;
+        if( !def->is(node::METHODDEF) and !def->is(node::OPERATORDEF) ) continue;
+        if( impl->name.tostr() != def->name.tostr() ) continue;
+        if( auto metd = ($metdef)def; metd ) {
+            auto meti = ($metimpl)impl;
+            if( (bool)metd->cons xor (bool)meti->cons ) continue;
+            if( (bool)metd->meta xor (bool)meti->meta ) continue;
+            if( metd->arg_protos.size() != meti->arg_protos.size() ) continue;
+            for( auto i = 0; i < metd->arg_protos.size(); i++ )
+                if( !IsIdentical(metd->arg_protos[i], meti->arg_protos[i]) ) continue;
+            if( !IsIdentical(metd->ret_proto,meti->ret_proto) ) continue;
+        } else if( auto opd = ($opdef)def; opd ) {
+            auto opi = ($opimpl)impl;
+            if( opd->modifier != opi->modifier ) continue;
+            if( (bool)opd->cons xor (bool)opi->cons ) continue;
+            if( opd->subtitle != opi->subtitle ) continue;
+            if( opd->arg_protos.size() != opi->arg_protos.size() ) continue;
+            for( auto i = 0; i < opd->arg_protos.size(); i++ )
+                if( !IsIdentical(opd->arg_protos[i], opi->arg_protos[i]) ) continue;
+            if( (bool)opd->ret_proto xor (bool)opi->ret_proto ) continue;
+            if( !IsIdentical(opd->ret_proto,opi->ret_proto) ) continue;
         }
     }
 
-    auto module = impl->getModule();
-    auto& diagnostics = module->sctx.diagnostics;
-    diagnostics[impl->getDocUri()]("96", impl->name);
     return nullptr;
 }
 
@@ -646,6 +675,8 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         /** 搜索内部定义 */
         for( auto def : sc->defs )
             if( def->name == name->name ) results << (anything)def;
+            else if( auto enm = ($enumdef)def; enm )
+                for( auto item : enm->items ) if( item->name == name->name ) results << (anything)item;
 
         /** 搜索联合定义 */
         for( auto dep : sc->sig->deps ) {
@@ -676,6 +707,8 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             } else {
                 if( (opts & SearchOption::INNERS) == 0 ) continue;
                 if( def->name == name->name ) results << (anything)def;
+                else if( auto enm = ($enumdef)def; enm )
+                    for( auto item : enm->items ) if( item->name == name->name ) results << (anything)item;
             }
         }
         
@@ -707,6 +740,26 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         return internal_error, nothing;
     }
 
+    /** 处理别名，将搜索到的别名解析 */
+    for( auto i = 0; i < results.size(); i++ ) if( auto alias = ($aliasdef)results[i]; alias ) {
+
+        /** 检查别名循环 */
+        for( auto layer : semantic.alias_searching_layers ) if( layer == alias ) {
+            diagnostics[alias->getDocUri()]("87", alias->phrase);
+            return nothing;
+        }
+
+        /** 解析别名引用 */
+        auto layers = move(semantic.searching_layers);
+        semantic.alias_searching_layers.push(alias);
+        auto res = Reach(alias->target, SearchOption::ALL|SearchOption::ANY, alias->getScope() );
+        semantic.alias_searching_layers.pop();
+        semantic.searching_layers = move(layers);
+        if( res.size() == 0 ) return nothing;
+        results += res;
+        results.remove(i--);
+    }
+
     /** 处理模板类用例的情况 */
     if( name->targs.size() and results.size() ) {
         if( results.size() != 1 ) return diagnostics[name->getDocUri()]("90", name->name), nothing;
@@ -715,20 +768,6 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         auto usage = GetTemplateUsage( def, name->targs );
         if( !usage ) return nothing;
         results[0] = usage;
-    }
-
-    /** 处理别名，将搜索到的别名解析 */
-    for( auto i = 0; i < results.size(); i++ ) if( auto alias = ($aliasdef)results[i]; alias ) {
-
-        /** 解析别名引用 */
-        semantic.searching_layers.pop();
-        auto res = Reach(alias->target, 
-            SearchOption::ALL|SearchOption::ANY, 
-            alias->getScope() );
-        semantic.searching_layers.push(scope);
-        if( res.size() == 0 ) return nothing;
-        results += res;
-        results.remove(i--);
     }
 
     if( results.size() != 0 and name->next ) {
@@ -811,6 +850,9 @@ $typeexpr SemanticContext::ReductTypeexpr( $typeexpr type, $eprototype proto ) {
         }
         if( auto def = ($classdef)res[0]; def ) {
             type->id = StructType;
+            type->sub = def;
+        } else if( auto def = ($enumdef)res[0]; def ) {
+            type->id = EnumType;
             type->sub = def;
         } else if( auto targ = ($eprototype)res[0]; targ ) {
             if( proto ) if( proto->etype == eprototype::var ) proto->etype = targ->etype;

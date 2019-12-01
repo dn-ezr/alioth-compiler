@@ -110,6 +110,11 @@ class SemanticContext {
          * @desc : 用于检查循环搜索的缓冲 */
         chainz<$scope> searching_layers;
 
+        /**
+         * @member alias_searching_layers : 别名搜索
+         * @desc : 和searching_ayers 联合组成循环搜索检查数据基础 */
+        chainz<$aliasdef> alias_searching_layers;
+
     public:
 
         SemanticContext( CompilerContext& context, Diagnostics& diagnostics_repo );
