@@ -277,8 +277,8 @@ struct callable {
         $eprototype ret_proto;
 
         /**
-         * @member arg_protos: 参数的元素原型 */
-        eprototypes arg_protos;
+         * @member arguments: 参数的元素原型 */
+        elements arguments;
 
         /**
          * @member va_arg: 可变参数 
@@ -825,17 +825,6 @@ struct attrdef : public definition {
 struct opdef : public definition, public opprototype {
 
     public:
-        /**
-         * @member defvals : 默认参数
-         * @desc : 默认参数指针的个数应当与参数个数相同 */
-        exprstmts defvals;
-
-        /**
-         * @member arg_names : 参数名称
-         * @desc : 运算符定义需要确定参数名称以便设置默认参数 */
-        tokens arg_names;
-
-    public:
         virtual ~opdef() = default;
         bool is( type )const override;
         $node clone( $scope scope ) const override;
@@ -854,11 +843,6 @@ struct metdef : public definition, public metprototype {
          * @member raw : 原始符号
          * @desc : 若无效，使用Alioth规则产生底层符号，若为raw约定，则使用方法名产生底层符号，若为字面字符串，则使用字符串内容产生底层符号 */
         token raw;
-
-        /**
-         * @member defvals : 默认参数
-         * @desc : 默认参数指针的个数应当与参数个数相同 */
-        exprstmts defvals;
 
     public:
         virtual ~metdef() = default;
@@ -927,6 +911,8 @@ struct element : public statement {
 
     public:
 
+        /**
+         * @member proto : 元素原型 */
         $eprototype proto;
 
         /**
@@ -1121,6 +1107,7 @@ struct loopstmt : public statement {
             suffixed, // uses body con
             step, // uses body it con ctrl
             iterate, // uses body it con
+            keyvalue, // uses body it con key
         };
     public:
 
@@ -1132,6 +1119,10 @@ struct loopstmt : public statement {
         /**
          * @member con : 条件/容器 */
         $exprstmt con;
+
+        /**
+         * @member key : 键 */
+        $element key;
 
         /**
          * @member it : 初始化语句/迭代器因子 */
@@ -1322,6 +1313,8 @@ struct typeexpr : public exprstmt {
         bool is( type )const override;
         $node clone( $scope scope ) const override;
         bool is_type( typeid_t )const;
+
+        static $typeexpr unknown( $scope scope, token phrase );
 };
 
 /**
@@ -1393,17 +1386,8 @@ struct lambdaexpr : public exprstmt, public callable {
     public:
 
         /**
-         * @member arg_names : 参数名称列表 */
-        tokens arg_names;
-
-        /**
          * @member body : 执行体 */
         $blockstmt body;
-
-        /**
-         * @member args : 参数
-         * @desc : 由语义上下文根据语法结构生成，用于产生变量实体 */
-        elements args;
 
     public:
         virtual ~lambdaexpr() = default;
@@ -1800,7 +1784,9 @@ class SyntaxContext {
 
         $blockstmt constructBlockStatement( $scope scope );
 
-        /** @param autowire : 是否正在扫描自动注入元素，自动注入元素由on结束定义，不要求指定数据类型,不接受初始化表达式 */
+        /** 
+         * @note : 不要求指定数据类型
+         * @param autowire : 是否正在扫描自动注入元素，自动注入元素由on或->结束定义，不接受初始化表达式 */
         $element constructElementStatement( $scope scope, bool autowire );
         /** @param intuple : 是否正在扫描元组内的表达式，这将会把>视为结束符 */
         $exprstmt constructExpressionStatement( $scope scope, bool intuple = false );
@@ -1826,8 +1812,9 @@ class SyntaxContext {
         $doexpr constructDoExpression( $scope scope );
 
         bool constructOperatorLabel( $scope scope, token& subtitle, $eprototype& proto );
-        bool constructParameterList( $scope scope, callable& ref, tokens& names );
-        bool constructParameterList( $scope scope, callable& ref, tokens& names, exprstmts& defvals );
+
+        /** @param defv : 是否接受默认参数 */
+        bool constructParameterList( $scope scope, callable& ref, bool defv);
 
         /** 
          * @param block: 是否将'{'视为块语句的开端

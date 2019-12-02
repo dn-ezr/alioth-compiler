@@ -328,8 +328,8 @@ bool SemanticContext::validateAttributeDefinition(  $attrdef def ) {
 
 bool SemanticContext::validateMethodDefinition(  $metdef def ) {
     bool success = true;
-    for( auto proto : def->arg_protos ) {
-        if( !$(proto) ) success = false;
+    for( auto arg : def->arguments ) {
+        if( !$(arg->proto) ) success = false;
     }
     if( !$(def->ret_proto) ) success = false;
     return success;
@@ -348,7 +348,7 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
                 success = false;
                 diagnostics[def->getDocUri()]("99", def->modifier);
             }
-            if( def->arg_names.size() != 1 or def->va_arg ) {
+            if( def->arguments.size() != 1 or def->va_arg ) {
                 success = false;
                 diagnostics[def->getDocUri()]("100", def->name);
             }
@@ -357,7 +357,7 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
             success = false;
             diagnostics[def->getDocUri()]("99", def->modifier);
         }
-        if( def->arg_names.size() != 1 or def->va_arg ) {
+        if( def->arguments.size() != 1 or def->va_arg ) {
             success = false;
             diagnostics[def->getDocUri()]("100", def->name);
         }
@@ -366,7 +366,7 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
             success = false;
             diagnostics[def->getDocUri()]("99", def->modifier);
         }
-        if( def->arg_names.size() != 0 or def->va_arg ) {
+        if( def->arguments.size() != 0 or def->va_arg ) {
             success = false;
             diagnostics[def->getDocUri()]("100", def->name);
         }
@@ -386,7 +386,7 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
                 success = false;
                 diagnostics[def->getDocUri()]("99", def->modifier);
             }
-            if( def->arg_names.size() != 1 or def->va_arg ) {
+            if( def->arguments.size() != 1 or def->va_arg ) {
                 success = false;
                 diagnostics[def->getDocUri()]("100", def->name);
             }  
@@ -397,7 +397,7 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
                 success = false;
                 diagnostics[def->getDocUri()]("99", def->modifier);
             }
-            if( def->arg_names.size() != 1 or def->va_arg ) {
+            if( def->arguments.size() != 1 or def->va_arg ) {
                 success = false;
                 diagnostics[def->getDocUri()]("100", def->name);
             }
@@ -411,7 +411,7 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
             success = false;
             diagnostics[def->getDocUri()]("99", def->modifier);
         }
-        if( def->arg_names.size() != 0 or def->va_arg ) {
+        if( def->arguments.size() != 0 or def->va_arg ) {
             success = false;
             diagnostics[def->getDocUri()]("100", def->name);
         }
@@ -420,10 +420,10 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
             success = false;
             diagnostics[def->getDocUri()]("99", def->modifier);
         }
-        if( def->name.is(PVT::MEMBER) and (def->arg_names.size() > 1 or def->va_arg) ) {
+        if( def->name.is(PVT::MEMBER) and (def->arguments.size() > 1 or def->va_arg) ) {
             success = false;
             diagnostics[def->getDocUri()]("100", def->name);
-        } else if( def->name.is(PVT::AS) and (def->arg_names.size() != 0 or def->va_arg) ) {
+        } else if( def->name.is(PVT::AS) and (def->arguments.size() != 0 or def->va_arg) ) {
             success = false;
             diagnostics[def->getDocUri()]("100", def->name);
         }
@@ -433,8 +433,8 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
             success = false;
             diagnostics[def->getDocUri()]("99", def->modifier);
         }
-        if( def->arg_protos.size() == 1 ) {
-            auto proto  =$(def->arg_protos[0]);
+        if( def->arguments.size() == 1 ) {
+            auto proto  =$(def->arguments[0]->proto);
             if( proto ) {
                 bool bad = false;
                 if( proto->etype != eprototype::ptr ) bad = true;
@@ -446,9 +446,9 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
                 } else {
                     bad = true;
                 }
-                if( bad ) diagnostics[def->getDocUri()]("101", def->arg_names[0]);
+                if( bad ) diagnostics[def->getDocUri()]("101", def->arguments[0]->phrase);
             }
-        } else if( def->arg_protos.size() > 1 ) {
+        } else if( def->arguments.size() > 1 ) {
             success = false;
             diagnostics[def->getDocUri()]("100", def->name);
         }
@@ -456,9 +456,9 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
         return internal_error, false;
     }
 
-    for( auto proto : def->arg_protos ) if( !$(proto) ) {
+    for( auto arg : def->arguments ) if( !$(arg->proto) ) {
         success = false;
-        diagnostics[proto->getDocUri()]("102", proto->phrase );
+        diagnostics[arg->proto->getDocUri()]("102", arg->proto->phrase );
     }
 
     if( def->ret_proto and !$(def->ret_proto) ) {
@@ -624,18 +624,18 @@ $definition SemanticContext::GetDefinition( $implementation impl ) {
             auto meti = ($metimpl)impl;
             if( (bool)metd->cons xor (bool)meti->cons ) continue;
             if( (bool)metd->meta xor (bool)meti->meta ) continue;
-            if( metd->arg_protos.size() != meti->arg_protos.size() ) continue;
-            for( auto i = 0; i < metd->arg_protos.size(); i++ )
-                if( !IsIdentical(metd->arg_protos[i], meti->arg_protos[i]) ) continue;
+            if( metd->arguments.size() != meti->arguments.size() ) continue;
+            for( auto i = 0; i < metd->arguments.size(); i++ )
+                if( !IsIdentical(metd->arguments[i]->proto, meti->arguments[i]->proto) ) continue;
             if( !IsIdentical(metd->ret_proto,meti->ret_proto) ) continue;
         } else if( auto opd = ($opdef)def; opd ) {
             auto opi = ($opimpl)impl;
             if( opd->modifier != opi->modifier ) continue;
             if( (bool)opd->cons xor (bool)opi->cons ) continue;
             if( opd->subtitle != opi->subtitle ) continue;
-            if( opd->arg_protos.size() != opi->arg_protos.size() ) continue;
-            for( auto i = 0; i < opd->arg_protos.size(); i++ )
-                if( !IsIdentical(opd->arg_protos[i], opi->arg_protos[i]) ) continue;
+            if( opd->arguments.size() != opi->arguments.size() ) continue;
+            for( auto i = 0; i < opd->arguments.size(); i++ )
+                if( !IsIdentical(opd->arguments[i]->proto, opi->arguments[i]->proto) ) continue;
             if( (bool)opd->ret_proto xor (bool)opi->ret_proto ) continue;
             if( !IsIdentical(opd->ret_proto,opi->ret_proto) ) continue;
         }
@@ -733,7 +733,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         if( sc->variable->name == name->name )
             results << (anything)sc->variable;
     } else if( auto sc = ($lambdaexpr)scope; sc ) {
-        for( auto arg : sc->args )
+        for( auto arg : sc->arguments )
             if( arg->name == name->name )
                 results << (anything)arg;
     } else {

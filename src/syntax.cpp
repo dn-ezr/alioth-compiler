@@ -27,7 +27,7 @@ namespace alioth {
 
 #define clone_callable(scope)\
     if( ret_proto ) ret->ret_proto = ret_proto->clone(scope);\
-    for( auto arg : arg_protos ) ret->arg_protos << ($eprototype)arg->clone(scope);\
+    for( auto arg : arguments ) ret->arguments << ($element)arg->clone(scope);\
     ret->va_arg = va_arg;
 
 #define clone_metprototype(scope)\
@@ -274,7 +274,6 @@ $node metdef::clone( $scope scope ) const {
     clone_definition(metdef,scope);
     clone_metprototype(scope);
     ret->raw = raw;
-    for( auto defval : defvals ) ret->defvals << ($exprstmt)defval->clone(scope);
     return ($node)ret;
 }
 
@@ -285,8 +284,6 @@ bool opdef::is( type t ) const {
 $node opdef::clone( $scope scope ) const {
     clone_definition(opdef,scope);
     clone_opprototype(scope);
-    ret->arg_names = arg_names;
-    for( auto defval : defvals ) ret->defvals << ($exprstmt)defval->clone(scope);
     return ($node)ret;
 }
 
@@ -387,6 +384,7 @@ $node loopstmt::clone( $scope scope ) const {
     ret->ltype = ltype;
     if( con ) ret->con = con->clone(scope);
     if( it ) ret->it = it->clone(scope);
+    if( key ) ret->key = key->clone(ret);
     if( ctrl ) ret->ctrl = ctrl->clone(ret);
     if( body ) ret->body = body->clone(ret);
     return ($node)ret;
@@ -455,6 +453,15 @@ bool typeexpr::is( type t ) const {
     return t == TYPEEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
+$typeexpr typeexpr::unknown( $scope scope, token phrase ) {
+    $typeexpr type = new typeexpr;
+    type->phrase = phrase;
+    type->phrase.tx.clear();
+    type->setScope(scope);
+    type->id = UnknownType;
+    return type;
+}
+
 $node typeexpr::clone( $scope scope ) const {
     clone_expression(typeexpr,scope);
     ret->id = id;
@@ -515,9 +522,7 @@ bool lambdaexpr::is( type t ) const {
 $node lambdaexpr::clone( $scope scope ) const {
     clone_expression(lambdaexpr,scope);
     clone_callable(scope);
-    ret->arg_names = arg_names;
     if( body ) ret->body = body->clone(ret);
-    for( auto arg : args ) ret->args << ($element)arg->clone(ret);
     return ($node)ret;
 }
 
@@ -683,7 +688,8 @@ void SyntaxContext::redu(int c, int n ) {
 $callable_type callable::getType() const {
     auto call = new callable_type;
     call->ret_proto = ret_proto;
-    call->arg_protos = arg_protos;
+    for( auto argument : arguments )
+        call->arg_protos << argument->proto;
     call->va_arg = va_arg;
     return call;
 }
@@ -1448,9 +1454,9 @@ $opdef SyntaxContext::constructOperatorDefinition( $scope scope ) {
                 movi(4);
             } else if( !ref->modifier.is(VT::DEFAULT,VT::DELETE) ) {
                 if( !ref->name.is(PVT::SCTOR) ) {
-                    if( !constructParameterList(scope, *ref, ref->arg_names) ) return nullptr;
+                    if( !constructParameterList(scope, *ref, false) ) return nullptr;
                 } else {
-                    if( !constructParameterList(scope, *ref, ref->arg_names, ref->defvals ) ) return nullptr;
+                    if( !constructParameterList(scope, *ref, true ) ) return nullptr;
                 } 
             } else {
                 movi(4,0);
@@ -1531,13 +1537,11 @@ $metdef SyntaxContext::constructMethodDefinition( $scope scope ) {
         case 3:
             if( it->is(VN::LIST) ) {
                 movi(4);
-            } else if( tokens names; constructParameterList(scope, *ref, names, ref->defvals ) ) {
+            } else if( constructParameterList(scope, *ref, true ) ) {
                 bool set = false;
-                int offset = 0;
-                for( auto& dv : ref->defvals ) {
-                    if( dv ) set = true;
-                    else if( set ) return diagnostics("53", names[offset]), nullptr;
-                    offset += 1;
+                for( auto& arg : ref->arguments ) {
+                    if( arg->init ) set = true;
+                    else if( set ) return diagnostics("53", arg->phrase), nullptr;
                 }
             } else {
                 return nullptr;
@@ -1606,7 +1610,7 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
             if( it->is(VN::LIST) ) {
                 movi(5);
             } else {
-                if( !constructParameterList(ref, *ref, ref->arg_names) ) return nullptr;
+                if( !constructParameterList(ref, *ref, false) ) return nullptr;
             } break;
         case 5:
             if( it->is(VN::BLOCKSTMT) ) {
@@ -1642,6 +1646,8 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 movi(8);
             } else if( it->is(VN::EXPRSTMT) ) {
                 stay();
+            } else if( it->is(VN::FINAL) ) {
+                redu(2,VN::BLOCKSTMT);
             } else {
                 movi(9,0);
             } break;
@@ -1661,6 +1667,8 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 if( !it->is(VT::L::LABEL) ) return diagnostics("29", *it), nullptr;
             } else if( it->is(VT::O::SC::SEMI) ) {
                 movi(9);
+            } else if( it->is(VN::FINAL) ) {
+                redu(3, VN::BLOCKSTMT);
             } else {
                 return diagnostics("21", VT::O::SC::C::S, *it), nullptr;
             } break;
@@ -1668,7 +1676,7 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
             if( it->is( CT::STATEMENT, VT::O::SC::SEMI ) ) {
                 stay();
             } else if( it->is(VT::O::SC::C::S) ) {
-                redu(4, VN::BLOCKSTMT);
+                redu(1, VN::FINAL);
             } else if( auto stmt = constructStatement(ref->body, false, true); stmt ) {
                 *ref->body << stmt;
             } else {
@@ -1729,7 +1737,7 @@ $metimpl SyntaxContext::constructMethodImplementation( $scope scope ) {
         case 3:
             if( it->is(VN::LIST) ) {
                 movi(4);
-            } else if( constructParameterList(ref, *ref, ref->arg_names) ) {
+            } else if( constructParameterList(ref, *ref, false) ) {
                 /** NOTHING TO BE DONE */
             } else {
                 return nullptr;
@@ -1808,6 +1816,9 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
                     case VT::REL: ref->proto->etype = eprototype::rel; break;
                 }
                 movi(2);
+            } else if( it->is(VT::L::LABEL,VT::CONST) ) {
+                ref->proto->etype = eprototype::var;
+                movi(2,0);
             } else {
                 return diagnostics("38", *it), nullptr;
             } break;
@@ -1824,27 +1835,30 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
             } break;
         case 3:
             if( it->is(VT::O::ASSIGN) ) {
+                if( autowire ) return diagnostics("21", VT::O::SC::COLON, *it ), nullptr;
+                if( !ref->proto->dtype ) ref->proto->dtype = typeexpr::unknown(scope, *it);
                 movi(4);
             } else if( it->is(VT::O::SC::SEMI) ) {
-                if( ref->proto->dtype and !ref->proto->dtype->is_type(UnknownType) )
-                    redu(-3, VN::ELEMENTSTMT);
-                else 
-                    return diagnostics("31", *it), nullptr;
-            } else if( autowire and it->is(PVT::ON) ) {
+                if( autowire ) return diagnostics("21", VT::O::SC::COLON, *it ), nullptr;
+                if( !ref->proto->dtype ) ref->proto->dtype = typeexpr::unknown(scope, *it);
                 redu(-3, VN::ELEMENTSTMT);
+            } else if( autowire and it->is(PVT::ON,VT::O::POINTER) ) {
+                ref->proto->dtype = typeexpr::unknown(scope, *it);
+                redu(-3, VN::ELEMENTSTMT);
+            } else if( autowire ) {
+                return diagnostics("21", VT::O::SC::COLON, *it), nullptr;
             } else if( it->is(VN::TYPEEXPR,VN::MORE) ) {
-                if( autowire ) return diagnostics("71", *it), nullptr;
                 stay();
             } else if( it->is(VT::O::SC::O::L) ) {
                 if( ref->proto->dtype ) redu(-3, VN::ELEMENTSTMT);
                 if( autowire ) return diagnostics("70", *it), nullptr;
                 movi(5);
-            } else if( !ref->proto->dtype ) {
-                ref->proto->dtype = constructTypeExpression(scope,true);
-                if( !ref->proto->dtype ) return nullptr;
+            } else if( ref->proto->dtype ) {
+                redu(-3, VN::ELEMENTSTMT);
+            } else if( auto type = constructTypeExpression(scope,true); type ) {
+                ref->proto->dtype = type;
             } else {
-                if( autowire ) return diagnostics("21", VT::O::SC::COLON, *it), nullptr;
-                else return diagnostics("21", VT::O::SC::SEMI, *it), nullptr;
+                return nullptr;
             } break;
         case 4:
             if( it->is(VN::EXPRSTMT) ) {
@@ -2329,7 +2343,7 @@ $loopstmt SyntaxContext::constructLoopStatement( $scope scope ) {
             } else if( it->is(VT::DO) ) {
                 ref->ltype = loopstmt::suffixed;
                 movi(16);
-            } else if( it->is(CT::ELETYPE,VT::VAR) ) {
+            } else if( it->is(CT::ELETYPE,VT::VAR,VT::CONST,VT::L::LABEL) ) {
                 ref->ltype = loopstmt::iterate;
                 movi(21,0);
             } else {
@@ -2383,7 +2397,10 @@ $loopstmt SyntaxContext::constructLoopStatement( $scope scope ) {
             } else if( it->is(VT::O::SC::SEMI) ) {
                 movi(10,0);
             } else if( it->is(CT::ELETYPE,VT::VAR,VT::CONST) ) {
-                ref->it = constructElementStatement(ref,false);
+                auto ele = constructElementStatement(ref,false);
+                if( ele and ele->proto->dtype->is_type(UnknownType) and !ele->init )
+                    return diagnostics("31", ele->name), nullptr;
+                ref->it = ele;
                 if( !ref->it ) return nullptr;
             } else if( auto expr = constructExpressionStatement(scope); expr ) {
                 ref->it = expr;
@@ -2481,6 +2498,14 @@ $loopstmt SyntaxContext::constructLoopStatement( $scope scope ) {
         case 22:
             if( it->is(PVT::ON) ) {
                 movi(23);
+            } else if( it->is(VT::O::POINTER) ) {
+                if( ref->key ) return diagnostics("21", VT::O::SC::COLON, *it), nullptr;
+                ref->ltype = loopstmt::keyvalue;
+                ref->key = ref->it;
+                ref->it = nullptr;
+                movi(26);
+            } else if( it->is(VN::MORE) ) {
+                stay();
             } else {
                 return diagnostics("21", VT::O::SC::COLON, *it), nullptr;
             } break;
@@ -2503,6 +2528,14 @@ $loopstmt SyntaxContext::constructLoopStatement( $scope scope ) {
                 redu(7, VN::LOOPSTMT);
             } else if( auto stmt = constructStatement(ref, true, false); stmt ) {
                 ref->body = stmt;
+            } else {
+                return nullptr;
+            } break;
+        case 26:
+            if( it->is(VN::ELEMENTSTMT) ) {
+                redu(1, VN::MORE);
+            } else if( auto stmt = constructElementStatement(ref, true); stmt ) {
+                ref->it = stmt;
             } else {
                 return nullptr;
             } break;
@@ -3067,7 +3100,7 @@ $lambdaexpr SyntaxContext::constructLambdaExpression( $scope scope ) {
             if( it->is(VN::LIST) ) {
                 movi(3);
             } else {
-                if( !constructParameterList(scope, *ref, ref->arg_names) ) return nullptr;
+                if( !constructParameterList(scope, *ref, false) ) return nullptr;
             } break;
         case 3:
             if( it->is(VN::ELEPROTO) ) {
@@ -3333,19 +3366,7 @@ bool SyntaxContext::constructOperatorLabel( $scope scope, token& subtitle, $epro
     return true;
 }
 
-bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens& names ) {
-    exprstmts defvals;
-    auto ret = constructParameterList( scope, ref, names, defvals );
-    for( auto& defval : defvals ) {
-        if( defval ) ret = (diagnostics("52", *it), false);
-    }
-    return ret;
-}
-
-bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens& names, exprstmts& defvals ) {
-    $eprototype cur_arg = nullptr;
-    $exprstmt* cur_expr = nullptr;
-
+bool SyntaxContext::constructParameterList( $scope scope, callable& ref, bool defv ) {
     enter();
     movi(1,0);
     while( working() ) switch( states[-1] ) {
@@ -3359,32 +3380,10 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens&
             if( it->is(VT::O::SC::C::A) ) {
                 redu(2, VN::LIST);
             } else {
-                movi(110, 0);
+                movi(110,0);
             } break;
         case 110:
-            if( it->is(CT::ELETYPE,VT::VAR) ) {
-                cur_arg = ref.arg_protos.construct(-1, new eprototype);
-                cur_expr = &defvals.construct(-1);
-                switch( it->id) {
-                    case VT::OBJ: cur_arg->etype = eprototype::obj; break;
-                    case VT::PTR: cur_arg->etype = eprototype::ptr; break;
-                    case VT::REF: cur_arg->etype = eprototype::ref; break;
-                    case VT::REL: cur_arg->etype = eprototype::rel; break;
-                    case VT::VAR: cur_arg->etype = eprototype::var; break;
-                    default: return internal_error, false;
-                }
-                movi(111);
-            } else if( it->is(VT::L::LABEL,VT::CONST) ) {
-                cur_arg = ref.arg_protos.construct(-1, new eprototype);
-                cur_expr = &defvals.construct(-1);
-                cur_arg->etype = eprototype::var;
-                movi(111,0);
-            } else if( it->is(VN::ITEM) ) {
-                //[NOTE]2019/11/26 允许参数的原型完全未知，因为assume语句可以假设元素原型
-                // if( cur_arg->etype == eprototype::var and cur_arg->dtype->is_type(UnknownType) and !(*cur_expr) )
-                //     return diagnostics("31", *it), false;
-                cur_arg->setScope(scope);
-                cur_arg->phrase = *it;
+            if( it->is(VN::ELEMENTSTMT) ) {
                 movi(113);
             } else if( it->is(VN::FINAL) ) {
                 movi(113);
@@ -3393,30 +3392,8 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens&
             } else if( it->is(VT::O::ETC) ) {
                 ref.va_arg = *it;
                 movi(114);
-            } else {
-                return diagnostics("38", *it), false;
-            } break;
-        case 111:
-            if( it->is(VT::CONST) ) {
-                if ( cur_arg->cons ) return diagnostics("27", *it), false;
-                else cur_arg->cons = *it;
-                stay();
-            } else if( it->is(VT::L::LABEL) ) {
-                names.construct(-1, *it);
-                movi(112);
-            } else {
-                return diagnostics("49", *it), false;
-            } break;
-        case 112:
-            if( it->is(VN::TYPEEXPR) ) {
-                 stay();
-            } else if( it->is(VT::O::ASSIGN) ) {
-                if( *cur_expr ) return diagnostics("21", VT::O::SC::C::A, *it), false;
-                movi(115);
-            } else if( cur_arg->dtype ) {
-                 redu(-2, VN::ITEM);
-            } else if( auto t = constructTypeExpression(scope, true); t ) {
-                cur_arg->dtype = t;
+            } else if( auto ele = constructElementStatement(scope, false); ele ) {
+                ref.arguments << ele;
             } else {
                 return false;
             } break;
@@ -3438,39 +3415,39 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, tokens&
             } else {
                 return diagnostics("21", VT::O::SC::C::A, *it), false;
             } break;
-        case 115:
-            if( it->is(VN::EXPRSTMT) ) {
-                redu(3, VN::ITEM);
-            } else if( auto expr = constructExpressionStatement(scope); expr ) {
-                *cur_expr = expr;
-            } else {
-                return false;
-            } break;
         default:
             return internal_error, false;
     }
 
     bool ok = true;
-    for( auto& name : names ) {
-        for( auto& another : names ) {
-            if( &another == &name ) break;
-            if( another.tx == name.tx ) {
-                diagnostics("56", name)
+    for( auto& arg : ref.arguments ) {
+        for( auto& another : ref.arguments ) {
+            if( &another == &arg ) break;
+            if( another->name.tx == another->name.tx ) {
+                diagnostics("56", arg->name)
                     [-1]
-                        (diagnostics.prefix(), "45", another);
+                        (diagnostics.prefix(), "45", another->name);
                 ok = false;
             }
         }
     }
+
+    if( !defv ) for( auto& arg : ref.arguments ) {
+        if( arg->init ) ok = (diagnostics("52", arg->init->phrase), false);
+    }
+
     return ok;
 }
 
 $statement SyntaxContext::constructStatement( $scope scope, bool block, bool ele ) {
     $statement ref;
 
-    if( it->is(CT::ELETYPE,VT::VAR) ) {
+    if( it->is(CT::ELETYPE,VT::VAR,VT::CONST) ) {
         if( !ele ) return diagnostics("59", *it), nullptr;
-        ref = constructElementStatement(scope,false);
+        auto e = constructElementStatement(scope,false);
+        if( e and !e->init and e->proto->dtype->is_type(UnknownType) )
+            diagnostics("31", e->name);
+        ref = e;
     } else if( it->is(VT::IF) ) {
         ref = constructBranchStatement(scope);
     } else if( it->is(VT::SWITCH) ) {
