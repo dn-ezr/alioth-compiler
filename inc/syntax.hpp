@@ -561,19 +561,9 @@ struct implementation : public node {
         token name;
 
         /**
-         * @member arg_names : 参数名称
-         * @desc : 参数名称的个数应当与参数列表中的参数个数相等 */
-        tokens arg_names;
-
-        /**
          * @member body : 方法实现体
          * @desc : 方法实现体是一个块语句 */
         $blockstmt body;
-
-        /**
-         * @member args : 参数
-         * @desc : 此容器承载实现的参数，由语义模块负责根据语法结构填写 */
-        elements args;
 };
 
 /**
@@ -728,9 +718,9 @@ struct classdef : public definition {
         nameexpres supers;
 
         /**
-         * @member contents : 定义内容
+         * @member defs : 定义内容
          * @desc : 类定义的内容定义都包含于此，包括子类，运算符，属性定义，方法定义，别名定义 */
-        definitions contents;
+        definitions defs;
 
         /**
          * @member usages : 用例

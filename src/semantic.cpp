@@ -56,7 +56,7 @@ bool SemanticContext::associateModule( $signature sig ) {
                 success = (diagnostics[cdef->getDocUri()]("75", cdef->name), false);
             if( cdef->supers.size() )
                 success = (diagnostics[cdef->getDocUri()]("76", cdef->name), false);
-            mod->defs += cdef->contents;
+            mod->defs += cdef->defs;
             trans = &def;
         }
     }
@@ -222,7 +222,7 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
     }
 
     /** 检查定义语义以及重复定义 */
-    for( auto& def : cls->contents ) {
+    for( auto& def : cls->defs ) {
 
         if( auto cldef = ($classdef)def; cldef ) success = validateClassDefinition(cldef) and success;
         else if( auto endef = ($enumdef)def; endef ) success =  validateEnumDefinition( endef ) and success;
@@ -233,7 +233,7 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
         else internal_error, success = false;
 
         /** 检查重复定义 */
-        for( auto& prv : cls->contents ) {
+        for( auto& prv : cls->defs ) {
             if( &def == &prv ) break;
             if( def->name != prv->name ) continue;
             bool repeat = true;
@@ -272,7 +272,7 @@ bool SemanticContext::validateClassDefinition(  $classdef cls ) {
             }
 
             /** 检查成员循环包含 */
-            for( auto content : def->contents ) {
+            for( auto content : def->defs ) {
                 if( auto attr = ($eprototype)content ) {
                     $(attr);
                     if( attr->etype == eprototype::obj and attr->dtype->is_type(StructType) )
@@ -336,7 +336,7 @@ bool SemanticContext::validateMethodDefinition(  $metdef def ) {
 }
 
 bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
-    bool success;
+    bool success = true;
 
     if( def->name.is(
         PVT::ADD,PVT::SUB,PVT::MUL,PVT::DIV,PVT::MOL,
@@ -389,7 +389,22 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
             if( def->arguments.size() != 1 or def->va_arg ) {
                 success = false;
                 diagnostics[def->getDocUri()]("100", def->name);
-            }  
+            } else if( auto proto = $(def->arguments[0]->proto); proto ) {
+                if( !proto->dtype->is_type(StructType) or proto->dtype->sub != def->getScope() ) {
+                    diagnostics[def->getDocUri()]("101", proto->dtype->phrase);
+                    success = false;
+                } else if( def->name.is(PVT::CCTOR) ) {
+                    if( proto->etype != eprototype::obj or !proto->cons ) {
+                        diagnostics[def->getDocUri()]("101", proto->phrase );
+                        success = false;
+                    }
+                } else if( def->name.is(PVT::MCTOR) ) {
+                    if( proto->etype != eprototype::rel or proto->cons ) {
+                        diagnostics[def->getDocUri()]("101", proto->phrase );
+                        success = false;
+                    }
+                }
+            }
         }
     } else if( def->name.is(PVT::ASSIGN_ADD,PVT::ASSIGN_SUB,PVT::ASSIGN_MUL,PVT::ASSIGN_DIV,PVT::ASSIGN_MOL,
         PVT::ASSIGN_SHL,PVT::ASSIGN_SHR,PVT::ASSIGN_BITAND,PVT::ASSIGN_BITOR,PVT::ASSIGN_BITXOR ) ) {
@@ -470,7 +485,36 @@ bool SemanticContext::validateOperatorDefinition(  $opdef def ) {
 }
 
 bool SemanticContext::validateMethodImplementation( $metimpl impl ) {
-    return true;
+    bool success = true;
+
+    auto host = ReachClass(impl->host);
+    if( !host ) {
+        diagnostics[impl->getDocUri()]("112", impl->host->phrase, impl->name);
+        return false;
+    }
+
+    $metdef org;
+    for( auto content : host->defs ) if( auto def = ($metdef)content; def ) {
+        if( def->name != impl->name ) continue;
+        if( def->arguments.size() != impl->arguments.size() ) continue;
+        if( (bool)def->cons xor (bool)impl->cons ) continue;
+        if( (bool)def->meta xor (bool)impl->meta ) continue;
+        if( !IsIdentical(def->ret_proto,impl->ret_proto,true) ) continue;
+        bool dif = false;
+        for( auto i = 0; i < def->arguments.size(); i++ )
+            if( !IsIdentical(def->arguments[i]->proto,impl->arguments[i]->proto, true) ) {
+                dif = true;
+                break;
+            }
+        if( dif ) continue;
+        org = def;
+        break;
+    } if( !org ) {
+        diagnostics[impl->getDocUri()]("113", impl->name);
+        return false;
+    }
+
+    return success;
 }
 
 bool SemanticContext::validateOperatorImplementation( $opimpl impl ) {
@@ -617,7 +661,7 @@ $definition SemanticContext::GetDefinition( $implementation impl ) {
     auto tc = GetThisClassDef(($node)impl);
     if( !tc ) return nullptr;
 
-    for( auto def : tc->contents ) {
+    for( auto def : tc->defs ) {
         if( !def->is(node::METHODDEF) and !def->is(node::OPERATORDEF) ) continue;
         if( impl->name.tostr() != def->name.tostr() ) continue;
         if( auto metd = ($metdef)def; metd ) {
@@ -700,7 +744,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         }
     } else if( auto sc = ($classdef)scope; sc ) {
         /** 搜索类的内部成员和内部定义 */
-        for( auto def : sc->contents ) {
+        for( auto def : sc->defs ) {
             if( auto attr = ($attrdef)def; attr ) {
                 if( (opts & SearchOption::MEMBERS) == 0 ) continue;
                 if( attr->name == name->name ) results << (anything)attr;
@@ -718,8 +762,12 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
                 results << (anything)sc->targs[i];
             }
         }
-    } else if( auto sc = ($implementation)scope; sc ) {
-        for( auto arg : sc->args )
+    } else if( auto sc = ($metimpl)scope; sc ) {
+        for( auto arg : sc->arguments )
+            if( arg->name == name->name )
+                results << (anything)arg;
+    } else if( auto sc = ($opimpl)scope; sc ) {
+        for( auto arg : sc->arguments )
             if( arg->name == name->name )
                 results << (anything)arg;
     } else if( auto sc = ($blockstmt)scope; sc ) {
@@ -795,11 +843,11 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
                     results += Reach(name, SearchOption::SUPER|SearchOption::MEMBERS, def );
                 }
             /** 若当前作用域没有目标，尝试搜索父作用域 */
-            if( opts & SearchOption::PARENT ) {
+            if( (opts & SearchOption::PARENT) and sc->getScope() ) {
                 results += Reach(name, SearchOption::PARENT|SearchOption::INNERS, sc->getScope());
             }
         } else if( auto sc = ($implementation)scope; sc ) {
-            if( auto def = GetDefinition(sc); def and (SearchOption::PARENT&opts) ) {
+            if( auto def = GetThisClassDef(($node)sc); def and (SearchOption::PARENT&opts) ) {
                 results += Reach(name, SearchOption::ANY|SearchOption::ALL, def);
             }
         } else if( (opts & SearchOption::PARENT) and scope->getScope() ) {
@@ -977,12 +1025,12 @@ $classdef SemanticContext::GetTemplateUsage( $classdef def, eprototypes targs ) 
         return diagnostics[targs[0]->getDocUri()]("109", targs[0]->phrase, targs[-1]->phrase), nullptr;
 
     /** 根据谓词删除前提不成立的定义 */
-    for( auto i = 0; i < usage->contents.size(); i++ ) {
-        auto content = usage->contents[i];
+    for( auto i = 0; i < usage->defs.size(); i++ ) {
+        auto content = usage->defs[i];
         if( content->premise.size() ) {
             bool found = false;
             for( auto i : content->premise ) if( premise.count(i) ){ found = true; break;}
-            if( !found ) usage->contents.remove(i--);
+            if( !found ) usage->defs.remove(i--);
         }
     }
 
@@ -1053,7 +1101,11 @@ SemanticContext::searching_layer::searching_layer( $scope scope, $nameexpr name 
     auto module = scope->getModule();
     auto& context = module->sctx;
     auto& diagnostics  = context.diagnostics;
+    auto found = 0;
     for( auto layer : context.searching_layers ) if( scope == layer ) {
+        found += 1;
+    }
+    if( found >= 8) {
         diagnostics[name->getDocUri()]("111", name->name);
         return;
     }

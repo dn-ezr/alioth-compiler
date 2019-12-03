@@ -21,9 +21,7 @@ namespace alioth {
     clone_node(T,scope)\
     ret->host = host->clone(scope);\
     ret->name = name;\
-    ret->arg_names = arg_names;\
-    if( body ) ret->body = body->clone(ret);\
-    for( auto arg : args ) ret->args << ($element)arg->clone(ret);
+    if( body ) ret->body = body->clone(ret);
 
 #define clone_callable(scope)\
     if( ret_proto ) ret->ret_proto = ret_proto->clone(scope);\
@@ -252,7 +250,7 @@ $node classdef::clone( $scope scope ) const {
     ret->preds = preds;
     for( auto targ : targs ) ret->targs << ($eprototype)targ->clone(targ->getScope());
     for( auto super : supers ) ret->supers << ($nameexpr)super->clone(ret);
-    for( auto content : contents ) ret->contents << ($definition)content->clone(ret);
+    for( auto def : defs ) ret->defs << ($definition)def->clone(ret);
     return ($node)ret;
 }
 
@@ -1076,7 +1074,7 @@ $classdef SyntaxContext::constructClassDefinition( $scope scope ) {
             } else if( it->is(VN::ALIASDEF,VN::CLASSDEF,VN::ENUMDEF,VN::OPDEF,VN::METDEF,VN::ATTRDEF) ) {
                 padding->premise = premise;
                 if( !branch ) premise.clear();
-                ref->contents << padding;
+                ref->defs << padding;
                 stay();
             } else if( it->is(VT::L::I::N) ) {
                 auto pi = stol(it->tx);
@@ -1613,25 +1611,33 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 if( !constructParameterList(ref, *ref, false) ) return nullptr;
             } break;
         case 5:
+            if( it->is(VN::ELEPROTO) or ref->name.is(PVT::SCTOR,PVT::CCTOR,PVT::MCTOR,PVT::LCTOR) ) {
+                movi(6, 0);
+            } else if( auto proto = constructElementPrototype(ref,true); proto ) {
+                ref->ret_proto = proto;
+            } else {
+                return nullptr;
+            } break;
+        case 6:
             if( it->is(VN::BLOCKSTMT) ) {
-                redu(5, VN::OPIMPL);
+                redu(6, VN::OPIMPL);
                 ref->body->phrase = *it;
             } else if( ref->name.is(PVT::SCTOR,PVT::CCTOR,PVT::MCTOR,PVT::LCTOR) ) {
                 ref->body = new blockstmt;
                 ref->body->setScope(ref);
-                movi(6,0);
+                movi(7,0);
             } else if( auto stmt = constructBlockStatement(ref); stmt ) {
                 ref->body = stmt;
             } else {
                 return nullptr;
             } break;
-        case 6:
+        case 7:
             if( it->is(VT::O::SC::O::S) ) {
-                movi(7);
+                movi(8);
             } else {
                 return diagnostics("21", VT::O::SC::O::S, *it), nullptr;
             } break;
-        case 7:
+        case 8:
             if( it->is(VT::O::SC::C::S) ) {
                 redu(2, VN::BLOCKSTMT);
             } else if( it->is(VT::O::SC::O::S) ) {
@@ -1643,15 +1649,15 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 if( !stmt ) return nullptr;
                 ref->supers << ($exprstmt)stmt;
             } else if( it->is(VT::O::SCOPE) ) {
-                movi(8);
+                movi(9);
             } else if( it->is(VN::EXPRSTMT) ) {
                 stay();
             } else if( it->is(VN::FINAL) ) {
                 redu(2,VN::BLOCKSTMT);
             } else {
-                movi(9,0);
+                movi(10,0);
             } break;
-        case 8:
+        case 9:
             if( it->is(VT::L::LABEL) ) {
                 auto name = *it;
                 stay();
@@ -1666,13 +1672,13 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 stay();
                 if( !it->is(VT::L::LABEL) ) return diagnostics("29", *it), nullptr;
             } else if( it->is(VT::O::SC::SEMI) ) {
-                movi(9);
+                movi(10);
             } else if( it->is(VN::FINAL) ) {
                 redu(3, VN::BLOCKSTMT);
             } else {
                 return diagnostics("21", VT::O::SC::C::S, *it), nullptr;
             } break;
-        case 9:
+        case 10:
             if( it->is( CT::STATEMENT, VT::O::SC::SEMI ) ) {
                 stay();
             } else if( it->is(VT::O::SC::C::S) ) {
@@ -3423,7 +3429,7 @@ bool SyntaxContext::constructParameterList( $scope scope, callable& ref, bool de
     for( auto& arg : ref.arguments ) {
         for( auto& another : ref.arguments ) {
             if( &another == &arg ) break;
-            if( another->name.tx == another->name.tx ) {
+            if( arg->name.tx == another->name.tx ) {
                 diagnostics("56", arg->name)
                     [-1]
                         (diagnostics.prefix(), "45", another->name);

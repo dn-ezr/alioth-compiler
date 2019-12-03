@@ -11,16 +11,12 @@ class SemanticContext;
 /**
  * @struct module : 模块
  * @desc : 模块对应于Alioth模块的概念，收集了属于一个模块的所有定义和实现 */
-struct module : node {
+struct module : classdef {
     public:
 
         /**
          * @member sig : 签名 */
         $signature sig;
-
-        /**
-         * @member defs : 定义 */
-        definitions defs;
 
         /**
          * @member impls : 实现 */
