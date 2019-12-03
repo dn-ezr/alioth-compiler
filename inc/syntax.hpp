@@ -364,7 +364,16 @@ struct signature : public node {
             /** @member fg : 语法树 */ 
             $fragment fg = nullptr;
         };
-    
+
+        struct entry_t {
+            srcdesc doc;
+            token mark;
+
+            operator bool()const;
+            json toJson()const;
+            static entry_t fromJson( const json& obj );
+        };
+        
     public:
         /**
          * @member name : 模块名 */
@@ -373,7 +382,7 @@ struct signature : public node {
         /**
          * @member entry : 入口标记
          * @desc : 标记入口方法的名称，入口方法一定是透明类中的拥有特定原型的元方法 */
-        token entry;
+        entry_t entry;
 
         /**
          * @member deps : 依赖集
@@ -1640,6 +1649,10 @@ class SyntaxContext {
     private:
 
         /**
+         * @member doc : 源文档描述符 */
+        srcdesc doc;
+
+        /**
          * @member source : 源码记号序列 */
         tokens& source;
 
@@ -1675,10 +1688,11 @@ class SyntaxContext {
          *  构造函数从token序列构造语法上下文，使用引用以减小内存开销。
          *  这意味着源token序列将在语法分析过程中被修改，如果你依然需要它
          *  请自行保存。
+         * @param doc : 源文档描述符
          * @param source : token序列引用
          * @param diagnostics : 诊断信息容器
          */
-        SyntaxContext( tokens& source, Diagnostics& diagnostics );
+        SyntaxContext( srcdesc doc, tokens& source, Diagnostics& diagnostics );
 
         /** 
          * @method extractSignature : 提取模块签名

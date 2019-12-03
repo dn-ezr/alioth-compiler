@@ -211,12 +211,6 @@ bool CompilerContext::syncModules( srcdesc space ) {
         created = all_existing;
     }
 
-    /** 检查源文档为空的模块，那是原本的源文档修改了其模块签名导致的 */
-    chainz<string> rms;
-    for( auto [name,sig] : *cache_map ) if( sig->docs.empty() ) rms << name;
-    for( const auto& rm : rms ) cache_map->erase(rm);
-    if( rms.size() ) different = true;
-
     /** 若源码发生任何变化，将变化同步，填写签名信息之后，写入缓冲配置文件。 */
     bool success = true;
     if( different ) {
@@ -246,6 +240,12 @@ bool CompilerContext::syncModules( srcdesc space ) {
         });
         if( os ) *os << cache_data.toJsonString();
     }
+
+    /** 检查源文档为空的模块，那是原本的源文档修改了其模块签名导致的 */
+    chainz<string> rms;
+    for( auto [name,sig] : *cache_map ) if( sig->docs.empty() ) rms << name;
+    for( const auto& rm : rms ) cache_map->erase(rm);
+    if( rms.size() ) different = true;
 
     return success;
 }
@@ -283,7 +283,7 @@ fulldesc CompilerContext::loadDocument( fulldesc doc, bool forceload ) {
     /** 分析源码 */
     auto lcontext = LexicalContext( *is, true );
     auto tokens = lcontext.perform();
-    auto scontext = SyntaxContext(tokens, diagnostics[spaceEngine.getUri(doc)]);
+    auto scontext = SyntaxContext(doc, tokens, diagnostics[spaceEngine.getUri(doc)]);
     auto sig = scontext.extractSignature(src);
     if( !sig ) {
         if( module ) module->docs.erase(doc);

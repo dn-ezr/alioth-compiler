@@ -92,7 +92,7 @@ bool AirContext::translateModule( $module semantic ) {
     module = llvm::make_unique<llvm::Module>((string)semantic->sig->name, *this);
 
     bool success = true;
-    for( auto def : semantic->defs )
+    for( auto def : semantic->trans->defs )
         success = translateDefinition(def) and success;
     if( success ) for( auto impl : semantic->impls )
         success = translateImplementation(impl) and success;

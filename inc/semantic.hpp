@@ -11,12 +11,16 @@ class SemanticContext;
 /**
  * @struct module : 模块
  * @desc : 模块对应于Alioth模块的概念，收集了属于一个模块的所有定义和实现 */
-struct module : classdef {
+struct module : public node {
     public:
 
         /**
          * @member sig : 签名 */
         $signature sig;
+
+        /**
+         * @member trans: 透明类定义 */
+        $classdef trans;
 
         /**
          * @member impls : 实现 */
@@ -156,6 +160,10 @@ class SemanticContext {
          *  根据依赖描述符定位模块
          */
         $module getModule( $depdesc );
+
+        /**
+         * @method clearCache : 清空缓冲信息 */
+        void clearCache();
 
         /**
          * @method validateDefinitionSemantics : 检验定义语义

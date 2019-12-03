@@ -124,7 +124,7 @@ bool token::is( CT v )const {
             return is(
                 VT::L::CHAR,VT::L::STRING,
                 VT::L::FALSE,VT::L::TRUE,
-                VT::L::NULL, //VT::VOID, [2019/03/28] 将nil从常量中剔除,从此引用不存在空值
+                VT::L::NULL, VT::L::THIS, //VT::VOID, [2019/03/28] 将nil从常量中剔除,从此引用不存在空值
                 VT::L::FLOAT,
                 VT::L::I::B,VT::L::I::H,VT::L::I::N,VT::L::I::O
             );

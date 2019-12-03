@@ -81,6 +81,24 @@ $module node::getModule() {
 CompilerContext& node::getCompilerContext() {
     return mscope->getCompilerContext();
 }
+signature::entry_t::operator bool()const {
+    return mark and doc;
+}
+
+json signature::entry_t::toJson()const {
+    json ret = json::object;
+    ret["doc"] = doc.toJson();
+    ret["mark"] = mark;
+    return ret;
+}
+
+signature::entry_t signature::entry_t::fromJson( const json& obj ) {
+    entry_t ret;
+    if( !obj.is(json::object) ) return ret;
+    if( obj.count("doc", json::object) ) ret.doc = srcdesc::fromJson(obj["doc"]);
+    if( obj.count("mark", json::string) ) ret.mark = (string)obj["mark"];
+    return ret;
+}
 
 CompilerContext& signature::getCompilerContext() {
     return *context;
@@ -94,7 +112,7 @@ $node signature::clone( $scope scope ) const {
 json signature::toJson() const {
     json obj = json::object;
     obj["name"] = name;
-    if( entry ) obj["entry"] = entry;
+    if( entry ) obj["entry"] = entry.toJson();
     auto& jdeps = obj["deps"] = json(json::array);
     auto& jcode = obj["code"] = json(json::array);
     for( auto dep : deps ) jdeps[jdeps.count()] = dep->toJson();
@@ -114,9 +132,8 @@ $signature signature::fromJson( const json& object, srcdesc space ) {
     sig->name = (string)object["name"];
     if( !sig->name.islabel() ) return nullptr;
 
-    if( object.count("entry",json::string) ) {
-        sig->entry = (string)object["entry"];
-        if( !sig->entry.islabel() ) return nullptr;
+    if( object.count("entry",json::object) ) {
+        sig->entry = entry_t::fromJson(object["entry"]);
     }
     if( object.count("deps",json::array) ) 
         for( auto& dep : object["deps"] ) {
@@ -138,8 +155,10 @@ $signature signature::fromJson( const json& object, srcdesc space ) {
 
 bool signature::combine( $signature an ) {
     if( !an or an->name != name or an->space != space ) return false;
-    if( entry and an->entry and entry != an->entry ) return false;
-    if( an->entry ) entry = an->entry;
+    if( an->entry ) {
+        if( entry and an->entry.doc != entry.doc ) return false;
+        else entry = an->entry;
+    }
     for( auto[k,v] : an->docs ) docs[k] = v;
     for( auto dep : an->deps ) {
         dep->setScope(nullptr);
@@ -702,7 +721,7 @@ bool SyntaxContext::working() {
     else return movo(sub), ws.pop(), false;
 }
 
-SyntaxContext::SyntaxContext( tokens& src, Diagnostics& ds ): source(src),diagnostics(ds),it(src.begin()) {
+SyntaxContext::SyntaxContext( srcdesc dc, tokens& src, Diagnostics& ds ): doc(dc),source(src),diagnostics(ds),it(src.begin()) {
 }
 
 $signature SyntaxContext::extractSignature( bool diagnostic ) {
@@ -816,7 +835,8 @@ $signature SyntaxContext::constructModuleSignature( bool diagnostic ) {
             } break;
         case 5:
             if( it->is(VT::L::LABEL) ) {
-                sig->entry = *it;
+                sig->entry.doc = doc;
+                sig->entry.mark = *it;
                 movi(6);
             } else {
                 if( diagnostic ) diagnostics("23",*it);
@@ -2919,12 +2939,22 @@ $constant SyntaxContext::constructConstantExpression( $scope scope ) {
             if( it->is(
                 VT::L::CHAR,VT::L::STRING,
                 VT::L::FALSE,VT::L::TRUE,
-                VT::L::FLOAT,VT::L::NULL,VT::L::THIS,
+                VT::L::FLOAT,VT::L::NULL,
                 VT::L::I::B,VT::L::I::H,VT::L::I::N,VT::L::I::O) ) {
                     ref->value = *it;
                 redu(1, VN::EXPRSTMT);
+            } else if( it->is(VT::L::THIS) ) {
+                ref->value = *it;
+                movi(2);
             } else {
                 return diagnostics("57", *it), nullptr;
+            } break;
+        case 2:
+            if( it->is(VT::CLASS) ) {
+                ref->value = *it;
+                redu(2,VN::EXPRSTMT);
+            } else {
+                redu(-2, VN::EXPRSTMT);
             } break;
         default:
             return internal_error, nullptr;

@@ -35,32 +35,43 @@ bool SemanticContext::associateModule( $signature sig ) {
     if( auto it = forest.find(sig); it != forest.end() and it->second ) return true;
     auto& mod = forest[sig] = new module(*this);
     mod->sig = sig;
+
+    definitions defs;
+
     for( auto [_,rec] : sig->docs ) {
         auto fg = rec.fg;
-        mod->defs += fg->defs;
+        defs += fg->defs;
         mod->impls += fg->impls;
         fg->setScope(mod);
     }
 
-    $definition* trans = nullptr;
     bool success = true;
-    for( auto& def : mod->defs ) {
+    for( int i = 0; i < defs.size(); i++ ) {
+        auto& def = defs[i];
         if( auto cdef = ($classdef)def; cdef and (string)cdef->name == (string)mod->sig->name ) {
-            if( trans )
+            if( mod->trans )
                 success = (diagnostics
                     [cdef->getDocUri()]("77", cdef->name)
-                    [-1]((*trans)->getDocUri(),"45",(*trans)->name), false);
+                    [-1](mod->trans->getDocUri(),"45",mod->trans->name), false);
             if( cdef->targf.size() )
                 success = (diagnostics[cdef->getDocUri()]("74", cdef->name), false);
             if( cdef->abstract )
                 success = (diagnostics[cdef->getDocUri()]("75", cdef->name), false);
             if( cdef->supers.size() )
                 success = (diagnostics[cdef->getDocUri()]("76", cdef->name), false);
-            mod->defs += cdef->defs;
-            trans = &def;
+            if( success ) {
+                mod->trans = def;
+                defs.remove(i--);
+                cdef->defs += defs;
+            }
         }
     }
-    if( trans ) mod->defs.remover(*trans);
+    if( !mod->trans ) {
+        mod->trans = new classdef;
+        mod->trans->setScope(mod);
+        mod->trans->name = mod->sig->name;
+        mod->trans->defs = defs;
+    }
 
     if( !success ) mod = nullptr;
     return success;
@@ -130,6 +141,13 @@ $module SemanticContext::getModule( $depdesc dep ) {
     return result;
 }
 
+void SemanticContext::clearCache() {
+    symbol_cache.clear();
+    dep_cache.clear();
+    searching_layers.clear();
+    alias_searching_layers.clear();
+}
+
 bool SemanticContext::validateDefinitionSemantics() {
     bool success = true;
     for( auto [sig,mod] : forest )
@@ -155,7 +173,7 @@ bool SemanticContext::validateModuleDefinition( $module mod ) {
     bool success = true;
 
     /** 检查定义语义以及重复定义 */
-    for( auto& def : mod->defs ) {
+    for( auto& def : mod->trans->defs ) {
 
         if( auto cldef = ($classdef)def; cldef ) success = validateClassDefinition(cldef) and success;
         else if( auto endef = ($enumdef)def; endef ) success =  validateEnumDefinition( endef ) and success;
@@ -166,7 +184,7 @@ bool SemanticContext::validateModuleDefinition( $module mod ) {
         else internal_error, success = false;
 
         /** 检查重复定义 */
-        for( auto& prv : mod->defs ) {
+        for( auto& prv : mod->trans->defs ) {
             if( &def == &prv ) break;
             if( def->name != prv->name ) continue;
             bool repeat = true;
@@ -714,10 +732,10 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
 
     if( auto sc = ($module)scope; sc ) {
         /** 尝试匹配自身 */
-        if( name->name == sc->sig->name ) results << (anything)sc;
+        if( name->name == sc->trans->name ) results << (anything)sc->trans;
 
         /** 搜索内部定义 */
-        for( auto def : sc->defs )
+        for( auto def : sc->trans->defs )
             if( def->name == name->name ) results << (anything)def;
             else if( auto enm = ($enumdef)def; enm )
                 for( auto item : enm->items ) if( item->name == name->name ) results << (anything)item;
@@ -727,7 +745,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             if( !dep->alias.is(VT::L::THIS) ) continue;
             auto mod = semantic.getModule(dep);
             if( !mod ) return internal_error, nothing;
-            for( auto def : mod->defs )
+            for( auto def : mod->trans->defs )
                 if( def->name == name->name ) results << (anything)def;
         }
         
@@ -740,7 +758,7 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
             if( !found ) continue;
             auto mod = semantic.getModule(dep);
             if( !mod ) return internal_error, nothing;
-            results << (anything)mod;
+            results << (anything)mod->trans;
         }
     } else if( auto sc = ($classdef)scope; sc ) {
         /** 搜索类的内部成员和内部定义 */
@@ -798,11 +816,9 @@ everything SemanticContext::Reach( $nameexpr name, SearchOptions opts, $scope sc
         }
 
         /** 解析别名引用 */
-        auto layers = move(semantic.searching_layers);
         semantic.alias_searching_layers.push(alias);
         auto res = Reach(alias->target, SearchOption::ALL|SearchOption::ANY, alias->getScope() );
         semantic.alias_searching_layers.pop();
-        semantic.searching_layers = move(layers);
         if( res.size() == 0 ) return nothing;
         results += res;
         results.remove(i--);
@@ -878,6 +894,13 @@ $eprototype SemanticContext::ReductPrototype( $eprototype proto ) {
         else if( proto->dtype->is_type(PointerTypeMask) ) proto->etype = eprototype::ptr;
         else proto->etype = eprototype::obj;
     }
+
+    if( proto->etype == eprototype::obj and proto->dtype->is_type(StructType) and !CanBeInstanced(($classdef)proto->dtype->sub) ) {
+        auto& diagnostics = proto->getModule()->sctx.diagnostics;
+        diagnostics[proto->getDocUri()]("115", proto->dtype->phrase);
+        return nullptr;
+    }
+
     return proto;
 }
 
@@ -948,7 +971,7 @@ $typeexpr SemanticContext::$( $typeexpr type, $eprototype proto ) {
 
 bool SemanticContext::CanBeInstanced( $classdef def ) {
     if( def->targf.size() and def->targs.size() == 0 ) return false;
-    /**[TODO] 检查抽象类所有方法被实现的情况 */
+    if( def->abstract ) return false;
     return true;
 }
 

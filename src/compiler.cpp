@@ -455,6 +455,7 @@ bool AliothCompiler::performSyntaticAnalysis() {
 }
 
 bool AliothCompiler::performSemanticAnalysis() {
+    semantic.clearCache();
     if( !semantic.associateModules(target_modules) ) return false;
     if( !semantic.validateDefinitionSemantics() ) return false;
     if( !semantic.validateImplementationSemantics() ) return false;
@@ -493,12 +494,9 @@ bool AliothCompiler::generateTargetFile() {
 bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
     bool success = true;
     for( auto& [doc,_] : sig->docs ) {
-        if( _.status != _.unloaded ) {
-            diagnostics += _.ds; continue;
-        }
+        if( _.status != _.unloaded ) {diagnostics += _.ds; continue;}
         Diagnostics tempd;
         tempd[spaceEngine->getUri(doc)];
-        semantic.releaseModule(sig); // 若模块的语法有所改动，则模块的语义被卸载
 
         auto is = spaceEngine->openDocumentForRead( doc );
         if( !is ) {
@@ -507,11 +505,12 @@ bool AliothCompiler::performSyntaticAnalysis( $signature sig ) {
         } else {
             auto lc = LexicalContext( *is, false );
             auto tokens = lc.perform();
-            auto sc = SyntaxContext(tokens, tempd);
+            auto sc = SyntaxContext(doc, tokens, tempd);
             auto fg = sc.constructFragment();
             if( fg ) context.registerFragment(doc,fg);
             else context.registerFragmentFailure(doc,tempd);
             if( !fg ) success = false;
+            else semantic.releaseModule(sig); // 若模块的语法有所改动，则模块的语义被卸载
         }
         diagnostics += tempd;
     }
