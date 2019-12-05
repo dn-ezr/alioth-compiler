@@ -80,7 +80,6 @@ using modules = chainz<$module>;
 
 using $scope = node*;
 
-struct callable; using $callable = agent<callable>;
 struct callable_type; using $callable_type = agent<callable_type>;
 
 /**

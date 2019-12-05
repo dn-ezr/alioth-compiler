@@ -97,8 +97,8 @@ bool AirContext::translateModule( $module semantic ) {
     if( success ) for( auto impl : semantic->impls )
         success = translateImplementation(impl) and success;
     
-    if( semantic->sig->entry ) {
-        success = generateStartFunction() and success;
+    if( semantic->entry ) {
+        success = generateStartFunction(semantic->entry) and success;
     }
 
     return success;
@@ -157,9 +157,27 @@ bool AirContext::translateOperatorImplementation( $opimpl ) {
     return success;
 }
 
-bool AirContext::generateStartFunction() {
+bool AirContext::generateStartFunction( $metdef met ) {
+    using namespace llvm;
     bool success = true;
-    
+
+    auto start = Function::Create(
+        FunctionType::get(Type::getInt32Ty(*this),{Type::getInt32Ty(*this),Type::getInt8PtrTy(*this)->getPointerTo()},false),
+        GlobalValue::ExternalLinkage,
+        "start",
+        module.get()
+    );
+    auto fp = module->getFunction(SemanticContext::GetBinarySymbol(($node)met));
+    if( !fp ) return false;
+
+    auto ebb = BasicBlock::Create(*this,"",start);
+    auto builder = IRBuilder<>(ebb);
+    auto ret = builder.CreateCall(fp,{
+        start->arg_begin(),
+        start->arg_begin()+1
+    });
+
+    builder.CreateRet( ret );
     return success;
 }
 

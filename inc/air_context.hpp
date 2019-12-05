@@ -81,8 +81,8 @@ class AirContext : public llvm::LLVMContext {
         bool translateMethodImplementation( $metimpl );
         bool translateOperatorImplementation( $opimpl );
 
-        /** 产生一个_start函数作为入口,它将整理命令行参数，调用入口方法 */
-        bool generateStartFunction();
+        /** 产生一个start函数作为入口,它将整理命令行参数，调用入口方法 */
+        bool generateStartFunction( $metdef met );
 };
 
 }

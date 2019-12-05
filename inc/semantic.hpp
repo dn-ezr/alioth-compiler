@@ -30,6 +30,10 @@ struct module : public node {
          * @member sctx : 语义上下文 */
         SemanticContext& sctx;
 
+        /**
+         * @member entry : 入口方法 */
+        $metdef entry;
+
     public:
         module( SemanticContext& context );
         virtual ~module() = default;
@@ -75,8 +79,58 @@ namespace SearchOption {
     constexpr SearchOptions ANY = INNERS | MEMBERS | TARGS;
 }
 
+struct ConvertPath;
+using $ConvertPath = agent<ConvertPath>;
+using ConvertPaths = chainz<$ConvertPath>;
 /**
- * @struct SemanticContext : 语义上下文
+ * @struct Convert : 类型转换路径
+ * @desc :
+ *  描述一个类型转换路径
+ */
+struct ConvertPath : public basic_thing {
+
+    /**
+     * @member const : 转换成本
+     * @desc
+     *  不可转换 --- 0
+     *  完全匹配可达 --- 1
+     *  扩展转换可达 --- 2
+     *  截断转换可达 --- 3
+     *  运算转换可达 --- 4
+     *  可构造可达 --- 5 */
+    private: int mcost;
+
+    /**
+     * @member op : 运算符 */
+    public: $opdef op;
+
+    /**
+     * @member next : 下一步动作 */
+    public: $ConvertPath next;
+
+    ConvertPath( int _cost = 0, $opdef _op = nullptr):mcost(_cost),op(_op){}
+
+    int cost()const { 
+        if( mcost == 0 ) return 0; 
+        else if( next ) return mcost + next->cost(); 
+        else return mcost; }
+    
+    $ConvertPath copy()const {
+        $ConvertPath ret = new ConvertPath(mcost,op);
+        if( next ) ret->next = next->copy();
+        return ret;
+    }
+
+    $ConvertPath push( $ConvertPath t ) {
+        auto p = this;
+        while( p and p->next ) p = p->next;
+        p->next = t;
+        return this;
+    }
+};
+
+/**
+ * @class SemanticContext : 语义上下文
  * @desc :
  *  语义分析上下文用于进行语义分析，将抽象语法树转化为API模块
  */
@@ -319,6 +373,48 @@ class SemanticContext {
          * @return classdefs : 按照书写顺序排列的继承关系
          */
         static classdefs GetInheritTable( $classdef def, classdefs paddings = {} );
+
+        /**
+         * @method Match : 测试类型匹配
+         * @desc :
+         *  检测两数据类型的匹配程度，注意此方法的参数具有方向性
+         * @param dst : 目标数据类型
+         * @param src : 源数据类型
+         * @param paddings : 用于防止循环匹配
+         * @return ConvertPaths: 数据类型转换的方法
+         */
+        static ConvertPaths Match( $typeexpr dst, $typeexpr src, typeexpres paddings = {} );
+
+        /**
+         * @method CanConvert : 是否可转换
+         * @desc :
+         *  检测是否可以仅通过转换匹配两数据类型
+         * @param dst : 目标数据类型
+         * @param src : 源数据类型
+         * @return ConvertPaths : 0,1,2,3,4转换可能性
+         */
+        static ConvertPaths CanConvert( $typeexpr dst, $typeexpr src );
+
+        /**
+         * @method CanConstruct : 是否可构造
+         * @desc :
+         *  检测是否可以通过构造方法匹配两个数据类型
+         * @param dst : 目标数据类型
+         * @param src : 源数据类型
+         * @param paddings : 挂起的检测目标，防止出现循环构造
+         * @return ConvertPaths : 所有的构造可能性
+         */
+        static ConvertPaths CanCnostruct( $typeexpr dst, $typeexpr src, typeexpres paddings = {} );
+
+        /**
+         * @member MinimalCall : 最小传参
+         * @desc :
+         *  检查可调用类型的最小传参数
+         * @param call : 可调用类型
+         * @param order : 是否按照顺序检查默认参数
+         * @return elements : 最小的可传参序列
+         */
+        static elements MinimalCall( callable* call, bool order = true );
 
     protected:
         class searching_layer {

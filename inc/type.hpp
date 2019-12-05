@@ -1,6 +1,8 @@
 #ifndef __type__
 #define __type__
 
+#include <map>
+
 /**
  * @file type.hpp
  * @desc :
@@ -52,6 +54,9 @@ constexpr typeid_t Int64Type =                 (TypeIdBitL << 0x13) | SignedInte
 constexpr typeid_t Float32Type =               (TypeIdBitL << 0x14) | FloatPointTypeMask;
 constexpr typeid_t Float64Type =               (TypeIdBitL << 0x15) | FloatPointTypeMask;
 constexpr typeid_t EnumType =                  (TypeIdBitL << 0x16) | SimpleTypeMask;
+
+/** basic_type_convert_table[dst][src] = cost */
+const std::map<std::tuple<typeid_t,typeid_t>,int> basic_type_convert_table;
 
 }
 

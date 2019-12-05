@@ -1119,6 +1119,131 @@ classdefs SemanticContext::GetInheritTable( $classdef def, classdefs paddings ) 
     return table;
 }
 
+ConvertPaths SemanticContext::Match( $typeexpr dst, $typeexpr src, typeexpres paddings ) {
+
+    for( auto padding : paddings ) if( IsIdentical(dst,padding) ) return {};
+    
+    /** 检查转换可达 */
+    auto converts =  CanConvert(dst, src);
+    if( converts.size() == 0 or converts[0]->cost() == 0  ) converts.clear();
+    else if( converts[0]->cost() == 1 ) return converts;
+
+    /** 检查构造可达 */
+    converts += CanCnostruct(dst, src, paddings);
+
+    return converts;
+}
+
+ConvertPaths SemanticContext::CanConvert( $typeexpr dst, $typeexpr src ) {
+    if( !$(dst) or !$(src) ) return {};
+    if( IsIdentical(dst,src, true) ) return {new ConvertPath(1)};
+    if( dst->is_type(UnknownType) ) return {new ConvertPath(2)};
+    
+    if( src->is_type(BasicTypeMask) ) {
+        if( dst->is_type(EnumType) and src->is_type(Int32Type) )
+            return {new ConvertPath(3)};
+        else if( basic_type_convert_table.count({dst->id,src->id}) )
+            return {new ConvertPath(basic_type_convert_table.at({dst->id,src->id}))};
+    } else if( src->is_type(StructType) ) {
+        ConvertPaths ret;
+        for( auto def : (($classdef)src->sub)->defs )
+            if( auto as = ($opdef)def; as and as->name.is(PVT::AS) and IsIdentical(as->ret_proto->dtype, dst) )
+                ret << new ConvertPath(4,as);
+        return ret;
+    } else if( src->is_type(EntityType) ) {
+        return {};
+    } else if( src->is_type(CallableType) ) {
+        return {};
+    } else if( src->is_type(PointerTypeMask) ) {
+        if( src->is_type(NullPointerType) ) {
+            if( dst->is_type(Uint64Type) ) {
+                return {new ConvertPath(2)};
+            } else if( dst->is_type(ConstraintedPointerType) ) {
+                return {new ConvertPath(2)};
+            } else if( dst->is_type(UnconstraintedPointerType) ) {
+                return {new ConvertPath(2)};
+            } else {
+                return {};
+            }
+        } else if( src->is_type(ConstraintedPointerType) ) {
+            if( dst->is_type(Uint64Type) ) {
+                return {new ConvertPath(2)};
+            } else if( dst->is_type(NullPointerType) ) {
+                return {new ConvertPath(2)};
+            } else if( dst->is_type(ConstraintedPointerType) ) {
+                return {new ConvertPath(3)};
+            } else if( dst->is_type(UnconstraintedPointerType) ) {
+                return {new ConvertPath(3)};
+            } else {
+                return {};
+            }
+        } else /*if( src->is_type(UnconstraintedPointerType) )*/ {
+            if( dst->is_type(Uint64Type) ) {
+                return {new ConvertPath(2)};
+            } else if( dst->is_type(NullPointerType) ) {
+                return {new ConvertPath(3)};
+            } else if( dst->is_type(ConstraintedPointerType) ) {
+                return {new ConvertPath(3)};
+            } else if( dst->is_type(UnconstraintedPointerType) ) {
+                return {new ConvertPath(3)};
+            } else {
+                return {};
+            }
+        }
+    } else if( src->is_type(EnumType) ) {
+        if( dst->is_type(Int32Type) )
+            return {new ConvertPath(2)};
+        else
+            return {};
+    }
+
+    return {};
+}
+
+ConvertPaths SemanticContext::CanCnostruct( $typeexpr dst, $typeexpr src, typeexpres paddings ) {
+    if( !$(dst) or !$(src) ) return {};
+    if( IsIdentical(dst,src, true) ) return {new ConvertPath(1)};
+    if( dst->is_type(UnknownType) ) return {new ConvertPath(2)};
+
+    ConvertPaths converts;
+    
+    if( dst->is_type(StructType) ) {
+        for( auto def : (($classdef)dst->sub)->defs ) {
+            if( auto op = ($opdef)def; op and op->name.is(PVT::SCTOR,PVT::LCTOR) and op->arguments.size() >= 1 ) {
+                $element arg;
+                auto args = MinimalCall(dynamic_cast<callable*>(&*op), false);
+
+                /** 判断自动传参 */
+                if( args.size() == 1 ) arg = args[0];
+                else if( op->arguments.size() == 1 ) arg = op->arguments[0];
+                else continue;
+
+                /** 判断传参类型匹配 */
+                auto pres = Match(arg->proto->dtype, src, paddings + typeexpres{dst});
+                if( pres.size() == 0 or pres[0]->cost() == 0 ) continue;
+
+                /** 整理转换路径 */
+                for( auto pre : pres ) 
+                    converts << pre->copy()->push(new ConvertPath(5, op));
+            }
+        }
+    }
+
+    return converts;
+}
+
+elements SemanticContext::MinimalCall( callable* call, bool order ) {
+    elements ret;
+    for( auto arg : call->arguments ) {
+        if( arg->init ) {
+            if( order ) break;
+        } else {
+            ret << arg;
+        }
+    }
+    return ret;
+}
+
 SemanticContext::searching_layer::searching_layer( $scope scope, $nameexpr name ):layers(nullptr) {
     if( !scope ) return;
     auto module = scope->getModule();
