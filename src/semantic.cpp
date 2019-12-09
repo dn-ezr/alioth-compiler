@@ -199,6 +199,28 @@ bool SemanticContext::validateModuleDefinition( $module mod ) {
                 success = false;
             }
         }
+
+        if( mod->sig->entry ) {
+            auto i32 = eprototype::make(mod,token("int32"), 
+                typeexpr::make(mod,token("int32"),Int32Type));
+            auto pp8 = eprototype::make(mod,token("**int8"), 
+                typeexpr::make(mod,token("**int8"), UnconstraintedPointerType,
+                    (anything)typeexpr::make(mod,token("**int8"), UnconstraintedPointerType,
+                        (anything)typeexpr::make(mod,token("**int8"), Int8Type))));
+            if( auto met = ($metdef)def; met and met->name == mod->sig->entry.mark ) {
+                if( met->arguments.size() != 2 ) continue;
+                if( !IsIdentical(met->ret_proto,i32) ) continue;
+                if( !IsIdentical(met->arguments[0]->proto,i32) ) continue;
+                if( !IsIdentical(met->arguments[1]->proto,pp8) ) continue;
+                mod->entry = met;
+            }
+        }
+    }
+
+    if( mod->sig->entry and !mod->entry ) {
+        auto& space = mod->getCompilerContext().getSpaceEngine();
+        diagnostics[space.getUri(mod->sig->entry.doc)]("116", mod->sig->entry.mark);
+        success = false;
     }
 
     return success;
@@ -536,6 +558,37 @@ bool SemanticContext::validateMethodImplementation( $metimpl impl ) {
 }
 
 bool SemanticContext::validateOperatorImplementation( $opimpl impl ) {
+    bool success = true;
+
+    auto host = ReachClass(impl->host);
+    if( !host ) {
+        diagnostics[impl->getDocUri()]("112", impl->host->phrase, impl->name);
+        return false;
+    }
+
+    $opdef org;
+    for( auto content : host->defs ) if( auto def = ($opdef)content; def ) {
+        if( def->name.tostr() != impl->name.tostr() ) continue;
+        if( def->subtitle != impl->subtitle ) continue;
+        if( def->arguments.size() != impl->arguments.size() ) continue;
+        if( (bool)def->cons xor (bool)impl->cons ) continue;
+        if( def->modifier != impl->modifier ) continue;
+        if( (bool)def->ret_proto xor (bool)impl->ret_proto ) continue;
+        if( !IsIdentical(def->ret_proto,impl->ret_proto,true) ) continue;
+        bool dif = false;
+        for( auto i = 0; i < def->arguments.size(); i++ )
+            if( !IsIdentical(def->arguments[i]->proto,impl->arguments[i]->proto, true) ) {
+                dif = true;
+                break;
+            }
+        if( dif ) continue;
+        org = def;
+        break;
+    } if( !org ) {
+        diagnostics[impl->getDocUri()]("113", impl->name);
+        return false;
+    }
+
     return true;
 }
 
@@ -637,6 +690,16 @@ string SemanticContext::GetBinarySymbol( $node s ) {
     }
 
     if( !skip ) {
+        /** 处理模板类的情况 */
+        if( auto usage = ($classdef)src; usage and usage->targs.size() ) {
+            symbol += "<";
+            for( int i = 0; i < usage->targs.size(); i++ ) {
+                if( i != 0 ) symbol += ",";
+                symbol += GetBinarySymbol(($node)usage->targs[i]);
+            }
+            symbol += ">";
+        }
+
         /** 处理方法原型和运算符原型 */
         if( auto met = dynamic_cast<metprototype*>(&*src); met ) {
             string prefix = "method";
@@ -944,6 +1007,7 @@ $typeexpr SemanticContext::ReductTypeexpr( $typeexpr type, $eprototype proto ) {
         if( !def ) {
             type->id = UnsolvableType;
             diagnostics[type->getDocUri()]("95", type->phrase);
+
             return nullptr;
         } else {
             type->id = StructType;
@@ -1242,6 +1306,123 @@ elements SemanticContext::MinimalCall( callable* call, bool order ) {
         }
     }
     return ret;
+}
+
+$eprototype SemanticContext::DetectElementPrototype( $exprstmt expr ) {
+
+    if( auto e = ($constant)expr; e ) {
+        $typeexpr dtype;
+        eprototype::type_t etype = eprototype::var;
+        bool cons = false;
+        switch( e->value.id ) {
+            case VT::L::CHAR : {
+                dtype = typeexpr::make(e->getScope(),e->phrase, NamedType,
+                    (anything)nameexpr::make(e->getScope(),e->phrase,token("char")) );
+            } break;
+            case VT::L::STRING : {
+                dtype = typeexpr::make(e->getScope(),e->phrase, NamedType,
+                    (anything)nameexpr::make(e->getScope(),e->phrase,token("string")) );
+            } break;
+            case VT::L::FALSE : case VT::L::TRUE : {
+                dtype = typeexpr::make(e->getScope(),e->phrase, BooleanType);
+            } break;
+            case VT::L::FLOAT : {
+                dtype = typeexpr::make(e->getScope(),e->phrase, Float64Type);
+            } break;
+            case VT::L::NULL : {
+                dtype = typeexpr::make(e->getScope(),e->phrase, NullPointerType);
+            } break;
+            case VT::L::I::B : {
+                const auto bits = e->value.tx.size()-2;
+                const auto bytes = (bits+7)/8;
+                if( bytes <= 1 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
+                else if( bytes <= 2 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
+                else if( bytes <= 4 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
+                else if( bytes <= 8 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
+                else return nullptr;
+            } break;
+            case VT::L::I::H : {
+                const auto bits = e->value.tx.size()-2;
+                const auto bytes = (bits+1)/2;
+                if( bytes <= 1 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
+                else if( bytes <= 2 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
+                else if( bytes <= 4 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
+                else if( bytes <= 8 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
+                else return nullptr;
+            } break;
+            case VT::L::I::O : {
+                const auto bits = e->value.tx.size()-2;
+                const auto bytes = (bits+2)/3;
+                if( bytes <= 1 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
+                else if( bytes <= 2 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
+                else if( bytes <= 4 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
+                else if( bytes <= 8 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
+                else return nullptr;
+            } break;
+            case VT::L::I::N : {
+                const auto value = stoull(e->value.tx);
+                if( value <= INT8_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int8Type );
+                else if( value <= UINT8_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
+                else if( value <= INT16_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int16Type );
+                else if( value <= UINT16_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
+                else if( value <= INT32_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int32Type );
+                else if( value <= UINT32_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
+                else if( value <= INT64_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int64Type );
+                else if( value <= UINT64_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
+                else return nullptr;
+            } break;
+            case VT::L::THIS : {
+                auto impl = e->getScope();
+                while( impl and !impl->is(node::IMPLEMENTATION) ) impl = impl->getScope();
+                if( !impl ) return nullptr;
+                if( auto met = ($metimpl)impl; met and met->cons ) cons = true;
+                dtype = typeexpr::make(e->getScope(), e->phrase, ThisClassType);
+                if( cons ) dtype = typeexpr::make(e->getScope(),e->phrase, ConstraintedPointerType, (anything)dtype );
+                else dtype = typeexpr::make(e->getScope(),e->phrase, ConstraintedPointerType, (anything)dtype );
+            } break;
+            case VT::CLASS : {
+                dtype = typeexpr::make(e->getScope(), e->phrase, ThisClassType);
+            } break;
+            case VT::L::LABEL: {
+                dtype = typeexpr::make(e->getScope(), e->phrase, EnumType);
+            } break;
+            default: return nullptr;
+        }
+        return eprototype::make(e->getScope(), e->phrase, dtype, etype, cons?token("const"):token());
+    } else if( auto e = ($nameexpr)expr; e ) {
+        auto res = $(e);
+        if( res.size() != 1 ) return nullptr;
+        if( auto ex = ($exprstmt)res[0]; ex ) return DetectElementPrototype(ex);
+        return nullptr;
+    } else if( auto e = ($typeexpr)expr; e ) {
+        return nullptr;
+    } else if( auto e = ($monoexpr)expr; e ) {
+        
+    } else if( auto e = ($binexpr)expr; e ) {
+
+    } else if( auto e = ($callexpr)expr; e ) {
+
+    } else if( auto e = ($lambdaexpr)expr; e ) {
+
+    } else if( auto e = ($sctorexpr)expr; e ) {
+
+    } else if( auto e = ($lctorexpr)expr; e ) {
+
+    } else if( auto e = ($tctorexpr)expr; e ) {
+
+    } else if( auto e = ($newexpr)expr; e ) {
+
+    } else if( auto e = ($delexpr)expr; e ) {
+
+    } else if( auto e = ($doexpr)expr; e ) {
+
+    } else if( auto e = ($tconvexpr)expr; e ) {
+
+    } else if( auto e = ($aspectexpr)expr; e ) {
+
+    } else if( auto e = ($mbrexpr)expr; e ) {
+
+    }
 }
 
 SemanticContext::searching_layer::searching_layer( $scope scope, $nameexpr name ):layers(nullptr) {

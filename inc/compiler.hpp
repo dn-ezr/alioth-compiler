@@ -242,8 +242,9 @@ class AliothCompiler : public AbstractCompiler {
          * @method performSemanticAnalysis : 执行语义分析
          * @desc :
          *  为已经建立语法树的目标模块执行语义分析，为中间代码生成做准备 
+         * @param backend : 是否执行后端分析
          */
-        bool performSemanticAnalysis();
+        bool performSemanticAnalysis( bool backend = false );
 
         /**
          * @method generateTargetFile : 产生目标文件
@@ -251,6 +252,13 @@ class AliothCompiler : public AbstractCompiler {
          *  为已经分析过语义的模块产生目标文件
          */
         bool generateTargetFile();
+
+        /**
+         * @method generateAssembleFile : 产生汇编文件
+         * @desc :
+         *  为已经分析过语义的模块产生汇编文件
+         */
+        bool generateAssembleFile();
 
         /**
          * @method performSyntaticAnalysis : 执行语法分析

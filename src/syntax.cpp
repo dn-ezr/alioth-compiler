@@ -258,6 +258,16 @@ $node aliasdef::clone( $scope scope ) const {
     return ($node)ret;
 }
 
+$eprototype eprototype::make( $scope scope, token phrase,$typeexpr dtype, type_t etype, token cons) {
+    $eprototype ret = new eprototype;
+    ret->phrase = phrase;
+    ret->setScope(scope);
+    ret->etype = etype;
+    ret->dtype = dtype;
+    ret->cons = cons;
+    return ret;
+}
+
 bool classdef::is( type t ) const {
     return t == CLASSDEF or t == DEFINITION;
 }
@@ -459,6 +469,15 @@ bool nameexpr::is( type t ) const {
     return t == NAMEEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
+$nameexpr nameexpr::make( $scope scope, token phrase, token name ) {
+    auto ret = new nameexpr;
+    ret->phrase = phrase;
+    ret->setScope(scope);
+    ret->etype = name_expr;
+    ret->name = name;
+    return ret;
+}
+
 $node nameexpr::clone( $scope scope ) const {
     clone_expression(nameexpr,scope);
     for( auto targ : targs ) ret->targs << ($eprototype)targ->clone(scope);
@@ -470,12 +489,13 @@ bool typeexpr::is( type t ) const {
     return t == TYPEEXPR or t == EXPRESSION or t == STATEMENT;
 }
 
-$typeexpr typeexpr::unknown( $scope scope, token phrase ) {
+$typeexpr typeexpr::make( $scope scope, token phrase, typeid_t id, anything sub ) {
     $typeexpr type = new typeexpr;
     type->phrase = phrase;
-    type->phrase.tx.clear();
     type->setScope(scope);
-    type->id = UnknownType;
+    type->etype = type_expr;
+    type->id = id;
+    type->sub = sub;
     return type;
 }
 
@@ -1335,8 +1355,6 @@ $enumdef SyntaxContext::constructEnumerateDefinition( $scope scope ) {
                 c->setScope(ref);
                 c->etype = exprstmt::constant;
                 c->name = c->value = *it;
-                c->value.id = VT::L::I::N;
-                c->value.tx = to_string(ref->items.size());
                 ref->items << c;
                 stay();
             } else if( it->is(VT::O::SC::C::S) ) {
@@ -1862,14 +1880,14 @@ $element SyntaxContext::constructElementStatement( $scope scope, bool autowire )
         case 3:
             if( it->is(VT::O::ASSIGN) ) {
                 if( autowire ) return diagnostics("21", VT::O::SC::COLON, *it ), nullptr;
-                if( !ref->proto->dtype ) ref->proto->dtype = typeexpr::unknown(scope, *it);
+                if( !ref->proto->dtype ) ref->proto->dtype = typeexpr::make(scope, *it);
                 movi(4);
             } else if( it->is(VT::O::SC::SEMI) ) {
                 if( autowire ) return diagnostics("21", VT::O::SC::COLON, *it ), nullptr;
-                if( !ref->proto->dtype ) ref->proto->dtype = typeexpr::unknown(scope, *it);
+                if( !ref->proto->dtype ) ref->proto->dtype = typeexpr::make(scope, *it);
                 redu(-3, VN::ELEMENTSTMT);
             } else if( autowire and it->is(PVT::ON,VT::O::POINTER) ) {
-                ref->proto->dtype = typeexpr::unknown(scope, *it);
+                ref->proto->dtype = typeexpr::make(scope, *it);
                 redu(-3, VN::ELEMENTSTMT);
             } else if( autowire ) {
                 return diagnostics("21", VT::O::SC::COLON, *it), nullptr;

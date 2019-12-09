@@ -4,6 +4,7 @@
 #include "air_context.hpp"
 #include "diagnostic.hpp"
 #include "semantic.hpp"
+#include "value.hpp"
 #include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/raw_os_ostream.h>
 #include <llvm/Target/TargetOptions.h>
@@ -51,6 +52,8 @@ AirContext::AirContext( string _arch, string _plat, Diagnostics& diag ):
         }
         auto RM = Optional<Reloc::Model>();
         targetMachine = target->createTargetMachine( targetTriple, CPU, Features, targetOptions, RM);
+
+        /** 初始化reference,unknown等内置数据结构 */
 }
 
 AirContext::~AirContext() {
@@ -58,9 +61,12 @@ AirContext::~AirContext() {
     targetMachine = nullptr;
 }
 
-bool AirContext::operator()( $module semantic, ostream& os ) {
-    auto success = translateModule(semantic);
+bool AirContext::operator()( $module semantic ) {
+    return translateModule(semantic);
+}
 
+bool AirContext::operator()( $module semantic, ostream& os, bool ir ) {
+    auto success = translateModule(semantic);
     string source_names;
     auto cctx = semantic->getCompilerContext();
     auto space = cctx.getSpaceEngine();
@@ -79,26 +85,30 @@ bool AirContext::operator()( $module semantic, ostream& os ) {
         diagnostics[semantic->sig->name]("81", error), success = false;
     if( !success ) return false;
 
-    llvm::legacy::PassManager pass;
     auto ros = llvm::raw_os_ostream(os);
-    auto rpos = llvm::buffer_ostream(ros);
-    targetMachine->addPassesToEmitFile(pass, rpos, nullptr, llvm::TargetMachine::CGFT_ObjectFile );
-    pass.run(*module);
+    if( ir ) {
+        module->print(ros,nullptr);
+    } else {
+        llvm::legacy::PassManager pass;
+        auto rpos = llvm::buffer_ostream(ros);
+        targetMachine->addPassesToEmitFile(pass, rpos, nullptr, llvm::TargetMachine::CGFT_ObjectFile );
+        pass.run(*module);
+    }
 
     return true;
 }
 
-bool AirContext::translateModule( $module semantic ) {
-    module = llvm::make_unique<llvm::Module>((string)semantic->sig->name, *this);
+bool AirContext::translateModule( $module semantics ) {
+    module = llvm::make_unique<llvm::Module>((string)semantics->sig->name, *this);
 
     bool success = true;
-    for( auto def : semantic->trans->defs )
+    for( auto def : semantics->trans->defs )
         success = translateDefinition(def) and success;
-    if( success ) for( auto impl : semantic->impls )
+    if( success ) for( auto impl : semantics->impls )
         success = translateImplementation(impl) and success;
     
-    if( semantic->entry ) {
-        success = generateStartFunction(semantic->entry) and success;
+    if( semantics->entry ) {
+        success = generateStartFunction(semantics->entry) and success;
     }
 
     return success;
@@ -120,8 +130,31 @@ bool AirContext::translateImplementation( $implementation impl ) {
     else return false;
 }
 
-bool AirContext::translateClassDefinition( $classdef ) {
+bool AirContext::translateClassDefinition( $classdef def ) {
     bool success = true;
+
+    /** 产生布局类型 */
+    if( def->targf.size() and def->targs.size() == 0 ) return true;
+    auto table = SemanticContext::GetInheritTable(def) << def;
+    vector<llvm::Type*> layout_meta;
+    vector<llvm::Type*> layout_inst;
+    for( auto layout : table )
+        for( auto def : layout->defs ) if( auto attr = ($attrdef)def; attr) {
+            if( attr->meta ) layout_meta.push_back($(attr->proto));
+            else layout_inst.push_back($(attr->proto));
+        }
+
+    /** 产生类型 */
+    auto entity = $t("entity."+SemanticContext::GetBinarySymbol(($node)def));
+    auto instance = $t("struct."+SemanticContext::GetBinarySymbol(($node)def));
+
+    /** 填充结构 */
+    entity->setBody(layout_meta);
+    instance->setBody(layout_inst);
+
+    /** 迭代内部定义 */
+    for( auto sub : def->defs )
+        success = translateDefinition(sub) and success;
     
     return success;
 }
@@ -168,7 +201,10 @@ bool AirContext::generateStartFunction( $metdef met ) {
         module.get()
     );
     auto fp = module->getFunction(SemanticContext::GetBinarySymbol(($node)met));
-    if( !fp ) return false;
+    if( !fp ) {
+        diagnostics[met->getDocUri()]("116", met->name);
+        return false;
+    }
 
     auto ebb = BasicBlock::Create(*this,"",start);
     auto builder = IRBuilder<>(ebb);
@@ -181,6 +217,77 @@ bool AirContext::generateStartFunction( $metdef met ) {
     return success;
 }
 
+llvm::Type* AirContext::$( $eprototype proto ) {
+    SemanticContext::$(proto);
+
+    if( proto->dtype->is_type(UnknownType) ) return $(proto->dtype);
+    if( proto->etype == eprototype::ref or proto->etype == eprototype::rel ) return $t("reference");
+    else return  $(proto->dtype);
+}
+
+llvm::Type* AirContext::$( $typeexpr type ) {
+    SemanticContext::$(type);
+    auto builder = llvm::IRBuilder<>(*this);
+
+    switch( type->id ) {
+        case UnknownType: {
+            return $t("unknown");
+        } break;
+        case StructType: case EntityType: {
+            return $t(SemanticContext::GetBinarySymbol(($node)type));
+        } break;
+        case CallableType: {
+            auto call = ($callable_type)type->sub;
+            vector<llvm::Type*> argts;
+            for( auto arg : call->arg_protos ) argts.push_back($(arg));
+            return llvm::FunctionType::get(
+                $(call->ret_proto),
+                argts,
+                (bool)call->va_arg
+            );
+        } break;
+        case ConstraintedPointerType: case UnconstraintedPointerType: {
+            return $(($typeexpr)type->sub)->getPointerTo();
+        } break;
+        case NullPointerType: {
+            return builder.getVoidTy()->getPointerTo();
+        } break;
+        case VoidType: {
+            return builder.getVoidTy();
+        } break;
+        case BooleanType: {
+            return builder.getInt1Ty();
+        } break;
+        case Int8Type: case Uint8Type: {
+            return builder.getInt8Ty();
+        } break;
+        case Int16Type: case Uint16Type: {
+            return builder.getInt16Ty();
+        } break;
+        case Int32Type: case Uint32Type: {
+            return builder.getInt32Ty();
+        } break;
+        case Int64Type: case Uint64Type: {
+            return builder.getInt64Ty();
+        } break;
+        case Float32Type: {
+            return builder.getFloatTy();
+        } break;
+        case Float64Type: {
+            return builder.getDoubleTy();
+        } break;
+        case EnumType: {
+            return builder.getInt32Ty();
+        } break;
+    }
+    return nullptr;
+}
+
+llvm::StructType* AirContext::$t( const string& symbol ) {
+    auto& ty = named_types[symbol];
+    if( !ty ) ty = llvm::StructType::create(*this, symbol);
+    return ty;
+}
 
 }
 #endif

@@ -2,6 +2,7 @@
 #define __type__
 
 #include <map>
+#include <agent.hpp>
 
 /**
  * @file type.hpp
@@ -17,8 +18,10 @@ namespace alioth {
 using typeid_t = unsigned long long;
 using typemask_t = unsigned long long;
 
+
 constexpr typeid_t TypeIdBitH =                0x80'00'00'00'00'00'00'00;
 constexpr typeid_t TypeIdBitL =                0x00'00'00'00'00'00'00'01;
+
 
 constexpr typemask_t DeterminedTypeMask =        (TypeIdBitH >> 0x00);
 constexpr typemask_t UndeterminedTypeMask =      (TypeIdBitH >> 0x01);
@@ -31,10 +34,12 @@ constexpr typemask_t FloatPointTypeMask =        (TypeIdBitH >> 0x07) | BasicTyp
 constexpr typemask_t UnsignedIntegerTypeMask =   (TypeIdBitH >> 0x08) | IntegerTypeMask;
 constexpr typemask_t SignedIntegerTypeMask =     (TypeIdBitH >> 0x09) | IntegerTypeMask;
 
+
 constexpr typeid_t UnknownType =               (TypeIdBitL << 0x00) | UndeterminedTypeMask;
 constexpr typeid_t NamedType =                 (TypeIdBitL << 0x01) | UndeterminedTypeMask;
 constexpr typeid_t ThisClassType =             (TypeIdBitL << 0x02) | UndeterminedTypeMask;
 constexpr typeid_t UnsolvableType =            (TypeIdBitL << 0x03) | UndeterminedTypeMask;
+
 constexpr typeid_t StructType =                (TypeIdBitL << 0x04) | CompositeTypeMask;
 constexpr typeid_t EntityType =                (TypeIdBitL << 0x05) | CompositeTypeMask;
 constexpr typeid_t CallableType =              (TypeIdBitL << 0x06) | CompositeTypeMask;
@@ -56,7 +61,7 @@ constexpr typeid_t Float64Type =               (TypeIdBitL << 0x15) | FloatPoint
 constexpr typeid_t EnumType =                  (TypeIdBitL << 0x16) | SimpleTypeMask;
 
 /** basic_type_convert_table[dst][src] = cost */
-const std::map<std::tuple<typeid_t,typeid_t>,int> basic_type_convert_table;
+extern const std::map<std::tuple<typeid_t,typeid_t>,int> basic_type_convert_table;
 
 }
 

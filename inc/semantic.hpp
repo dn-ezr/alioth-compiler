@@ -245,15 +245,6 @@ class SemanticContext {
         bool validateMethodImplementation( $metimpl );
         bool validateOperatorImplementation( $opimpl );
 
-        bool validateBlockStatement( $blockstmt );
-        bool validateElementStatement( $element );
-        bool validateFlowControlStatement( $fctrlstmt );
-        bool validateExpressionStatement( $exprstmt );
-        bool validateBranchStatement( $branchstmt );
-        bool validateLoopStatement( $loopstmt );
-        bool validateAssumeStatement( $assumestmt );
-        bool validateDoStatement( $dostmt );
-
     public:
 
         /**
@@ -407,7 +398,7 @@ class SemanticContext {
         static ConvertPaths CanCnostruct( $typeexpr dst, $typeexpr src, typeexpres paddings = {} );
 
         /**
-         * @member MinimalCall : 最小传参
+         * @method MinimalCall : 最小传参
          * @desc :
          *  检查可调用类型的最小传参数
          * @param call : 可调用类型
@@ -415,6 +406,13 @@ class SemanticContext {
          * @return elements : 最小的可传参序列
          */
         static elements MinimalCall( callable* call, bool order = true );
+
+        /**
+         * @method DetectElementPrototype : 推导元素原型
+         * @desc :
+         *  推导一个语句的元素原型,失败则返回空
+         */
+        static $eprototype DetectElementPrototype( $exprstmt expr );
 
     protected:
         class searching_layer {

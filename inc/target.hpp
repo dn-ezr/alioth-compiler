@@ -21,6 +21,7 @@ struct Target {
      */
     enum Indicator {
         AUTO,
+        LLVMIR,
         EXECUTABLE, 
         STATIC, 
         DYNAMIC, 

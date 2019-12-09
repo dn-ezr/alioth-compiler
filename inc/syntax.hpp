@@ -630,6 +630,8 @@ struct eprototype : virtual public node {
         virtual ~eprototype() = default;
         bool is( type )const override;
         $node clone( $scope scope ) const override;
+
+        static $eprototype make( $scope scope, token phrase,$typeexpr dtype, type_t etype = var, token cons = token() );
 };
 
 /**
@@ -1260,6 +1262,8 @@ struct nameexpr : public exprstmt {
         virtual ~nameexpr() = default;
         bool is( type )const override;
         $node clone( $scope scope ) const override;
+
+        static $nameexpr make( $scope scope, token phrase, token name);
 };
 
 /**
@@ -1312,7 +1316,7 @@ struct typeexpr : public exprstmt {
         $node clone( $scope scope ) const override;
         bool is_type( typeid_t )const;
 
-        static $typeexpr unknown( $scope scope, token phrase );
+        static $typeexpr make($scope scope, token phrase, typeid_t id = UnknownType, anything sub = nullptr);
 };
 
 /**

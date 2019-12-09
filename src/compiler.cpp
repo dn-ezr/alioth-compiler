@@ -240,7 +240,7 @@ int BasicCompiler::execute() {
             } else {
                 return init(args[i]);
             }
-        } else if( arg == ":" or arg == "x:" or arg == "s:" or arg == "d:" or arg == "v:" ) {
+        } else if( arg == ":" or arg == "x:" or arg == "s:" or arg == "d:" or arg == "v:" or arg == "i:" ) {
             target_found = true;
             if( args.remove(i); i >= args.size() ) {
                 diagnostics["command-line"]("13",arg);
@@ -256,6 +256,7 @@ int BasicCompiler::execute() {
                     case 'x': target.indicator = Target::EXECUTABLE; break;
                     case 's': target.indicator = Target::STATIC; break;
                     case 'd': target.indicator = Target::DYNAMIC; break;
+                    case 'i': target.indicator = Target::LLVMIR; break;
                     case 'v': {
                         target.indicator = Target::VALIDATE; 
                         success = configureDiagnosticDestination(target.name) and success;
@@ -374,7 +375,11 @@ int AliothCompiler::execute() {
     if( !performSyntaticAnalysis() ) return 3;
     if( !performSemanticAnalysis() ) return 4;
     if( target.indicator == Target::VALIDATE ) return 0;
-    if( !generateTargetFile() ) return 5;
+    else if( target.indicator == Target::LLVMIR) {
+        if( !generateAssembleFile() ) return 5;
+    } else {
+        if( !generateTargetFile() ) return 6;
+    }
 
     return 0;
 }
@@ -394,7 +399,7 @@ int AliothCompiler::execute_full_interactive() {
                 
                 success = success and detectInvolvedModules();
                 success = success and performSyntaticAnalysis();
-                success = success and performSemanticAnalysis();
+                success = success and performSemanticAnalysis(true);
                 
                 auto info = diagnosticEngine->printToJson(diagnostics);
                 msock.respondDiagnostics(package->seq, info);
@@ -454,11 +459,31 @@ bool AliothCompiler::performSyntaticAnalysis() {
     return success;
 }
 
-bool AliothCompiler::performSemanticAnalysis() {
+bool AliothCompiler::performSemanticAnalysis( bool backend ) {
     semantic.clearCache();
     if( !semantic.associateModules(target_modules) ) return false;
     if( !semantic.validateDefinitionSemantics() ) return false;
     if( !semantic.validateImplementationSemantics() ) return false;
+
+    if( backend ) {
+        bool success = true;
+
+        auto arch = PackageLocator::THIS_ARCH;
+        auto platform = PackageLocator::THIS_PLATFORM;
+        if( target.variables.count("arch",json::string) ) arch = target.variables["arch"];
+        if( target.variables.count("platform",json::string) ) platform = target.variables["platform"];
+        auto air = AirContext(arch, platform, diagnostics);
+
+        signatures targets;
+        for( auto mname : target.modules )
+            targets += context.getModule(mname, {flags:WORK});
+
+        for( auto sig : targets ) {
+            auto mod = semantic.getModule(sig);
+            if( !mod ) {success = false; continue;}
+            else success  = air(mod) and success;
+        }
+    }
     return true;
 }
 
@@ -486,6 +511,35 @@ bool AliothCompiler::generateTargetFile() {
         auto os = spaceEngine->openDocumentForWrite(desc);
         if( !os ) diagnostics[spaceEngine->getUri(desc)]("80", fname);
         else success  = air(mod, *os) and success;
+    }
+
+    return success;
+}
+
+bool AliothCompiler::generateAssembleFile() {
+    bool success = true;
+
+    auto arch = PackageLocator::THIS_ARCH;
+    auto platform = PackageLocator::THIS_PLATFORM;
+    if( target.variables.count("arch",json::string) ) arch = target.variables["arch"];
+    if( target.variables.count("platform",json::string) ) platform = target.variables["platform"];
+    auto air = AirContext(arch, platform, diagnostics);
+
+    signatures targets;
+    for( auto mname : target.modules )
+        targets += context.getModule(mname, {flags:WORK});
+
+    for( auto sig : targets ) {
+        auto mod = semantic.getModule(sig);
+        if( !mod ) {success = false; continue;}
+        auto fname = mod->sig->name.tx + ".ll";
+        auto desc = srcdesc{
+            flags: WORK|OBJ|DOCUMENT,
+            name: fname
+        };
+        auto os = spaceEngine->openDocumentForWrite(desc);
+        if( !os ) diagnostics[spaceEngine->getUri(desc)]("80", fname);
+        else success  = air(mod, *os, true) and success;
     }
 
     return success;
