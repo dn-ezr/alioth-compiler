@@ -679,7 +679,7 @@ string SemanticContext::GetBinarySymbol( $node s ) {
         } else if( type->is_type(CallableType) ) {
             /** 此处的任务在下面的call部分被处理 */
         } else if( type->is_type(EntityType) ) {
-            symbol = "entity." + GetBinarySymbol(($node)type->sub);
+            symbol = "entity_struct." + GetBinarySymbol(($node)type->sub);
         } else if( type->is_type(StructType) ) {
             symbol = "struct." + GetBinarySymbol(($node)type->sub);
         } else {

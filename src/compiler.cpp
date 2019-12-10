@@ -509,8 +509,15 @@ bool AliothCompiler::generateTargetFile() {
             name: fname
         };
         auto os = spaceEngine->openDocumentForWrite(desc);
-        if( !os ) diagnostics[spaceEngine->getUri(desc)]("80", fname);
+        if( !os ) diagnostics[spaceEngine->getUri(desc)]("80", fname), success = false;
         else success  = air(mod, *os) and success;
+    }
+
+    if( auto os = spaceEngine->openDocumentForWrite({flags: WORK|OBJ|DOCUMENT,name: "alioth.o"}); os ) {
+        success = air(*os) and success;
+    } else {
+        diagnostics[spaceEngine->getUri({flags: WORK|OBJ|DOCUMENT,name: "alioth.o"})]("80", "alioth.o");
+        success = false;
     }
 
     return success;
@@ -540,6 +547,13 @@ bool AliothCompiler::generateAssembleFile() {
         auto os = spaceEngine->openDocumentForWrite(desc);
         if( !os ) diagnostics[spaceEngine->getUri(desc)]("80", fname);
         else success  = air(mod, *os, true) and success;
+    }
+
+    if( auto os = spaceEngine->openDocumentForWrite({flags: WORK|OBJ|DOCUMENT,name: "alioth.ll"}); os ) {
+        success = air(*os, true) and success;
+    } else {
+        diagnostics[spaceEngine->getUri({flags: WORK|OBJ|DOCUMENT,name: "alioth.ll"})]("80", "alioth.ll");
+        success = false;
     }
 
     return success;

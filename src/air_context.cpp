@@ -54,11 +54,52 @@ AirContext::AirContext( string _arch, string _plat, Diagnostics& diag ):
         targetMachine = target->createTargetMachine( targetTriple, CPU, Features, targetOptions, RM);
 
         /** 初始化reference,unknown等内置数据结构 */
+        initInlineStructures();
 }
 
 AirContext::~AirContext() {
     if( targetMachine ) delete targetMachine;
     targetMachine = nullptr;
+}
+
+void AirContext::initInlineStructures() {
+    using namespace llvm;
+
+    alioth = std::make_shared<Module>("alioth", *this);
+
+    auto builder = IRBuilder<>(*this);
+
+    named_types["reference"] = StructType::create(
+        "reference",
+        builder.getInt8Ty()->getPointerTo(),    // 指向代理体的指针
+        builder.getInt32Ty()                    // 偏移量
+    );
+
+    named_types["agent"] = StructType::create(
+        "agent",
+        builder.getInt8Ty()->getPointerTo(),    // 对象实际指针
+        builder.getInt32Ty()                    // 引用计数
+    );
+
+    named_types["unknown"] = StructType::create(
+        "unknown",
+        builder.getInt8Ty()->getPointerTo(),    // 对于简单数据类型是值本身，对于复合数据类型是指针
+        builder.getInt8Ty()->getPointerTo(),    // 类实体指针，用作RTTI时的TypeId
+        builder.getInt32Ty()                    // 变量类型附加信息
+    );
+
+    createGlobalStr("void");
+    createGlobalStr("boolean");
+    createGlobalStr("uint8");
+    createGlobalStr("uint16");
+    createGlobalStr("uint32");
+    createGlobalStr("uint64");
+    createGlobalStr("int8");
+    createGlobalStr("int16");
+    createGlobalStr("int32");
+    createGlobalStr("int64");
+    createGlobalStr("float32");
+    createGlobalStr("float64");
 }
 
 bool AirContext::operator()( $module semantic ) {
@@ -76,8 +117,6 @@ bool AirContext::operator()( $module semantic, ostream& os, bool ir ) {
 
     string error;
     auto errrso = llvm::raw_string_ostream(error);
-    module->setTargetTriple(targetTriple);
-    module->setDataLayout(targetMachine->createDataLayout());
     for( auto& fun : module->getFunctionList() )
         if( error.clear(); llvm::verifyFunction(fun, &errrso) )
             diagnostics[semantic->sig->name]("81", error), success = false;
@@ -85,25 +124,18 @@ bool AirContext::operator()( $module semantic, ostream& os, bool ir ) {
         diagnostics[semantic->sig->name]("81", error), success = false;
     if( !success ) return false;
 
-    auto ros = llvm::raw_os_ostream(os);
-    if( ir ) {
-        module->print(ros,nullptr);
-    } else {
-        llvm::legacy::PassManager pass;
-        auto rpos = llvm::buffer_ostream(ros);
-        targetMachine->addPassesToEmitFile(pass, rpos, nullptr, llvm::TargetMachine::CGFT_ObjectFile );
-        pass.run(*module);
-    }
+    success = success and generateOutput(module, os, ir);
+    return success;
+}
 
-    return true;
+bool AirContext::operator()( ostream& os, bool ir ) {
+    return generateOutput(alioth, os, ir);
 }
 
 bool AirContext::translateModule( $module semantics ) {
-    module = llvm::make_unique<llvm::Module>((string)semantics->sig->name, *this);
+    module = std::make_shared<llvm::Module>((string)semantics->sig->name, *this);
 
-    bool success = true;
-    for( auto def : semantics->trans->defs )
-        success = translateDefinition(def) and success;
+    bool success = translateClassDefinition(semantics->trans);
     if( success ) for( auto impl : semantics->impls )
         success = translateImplementation(impl) and success;
     
@@ -145,12 +177,15 @@ bool AirContext::translateClassDefinition( $classdef def ) {
         }
 
     /** 产生类型 */
-    auto entity = $t("entity."+SemanticContext::GetBinarySymbol(($node)def));
-    auto instance = $t("struct."+SemanticContext::GetBinarySymbol(($node)def));
+    auto entity_ty = $t("entity_struct."+SemanticContext::GetBinarySymbol(($node)def));
+    auto instance_ty = $t("struct."+SemanticContext::GetBinarySymbol(($node)def));
 
     /** 填充结构 */
-    entity->setBody(layout_meta);
-    instance->setBody(layout_inst);
+    entity_ty->setBody(layout_meta);
+    instance_ty->setBody(layout_inst);
+
+    auto entity = $e(def);
+    entity->setInitializer(llvm::ConstantAggregateZero::get(entity_ty));
 
     /** 迭代内部定义 */
     for( auto sub : def->defs )
@@ -215,6 +250,24 @@ bool AirContext::generateStartFunction( $metdef met ) {
 
     builder.CreateRet( ret );
     return success;
+}
+
+bool AirContext::generateOutput( shared_ptr<llvm::Module> mod, ostream& os, bool ir ) {
+    bool success = true;
+    mod->setTargetTriple(targetTriple);
+    mod->setDataLayout(targetMachine->createDataLayout());
+
+    auto ros = llvm::raw_os_ostream(os);
+    if( ir ) {
+        mod->print(ros,nullptr);
+    } else {
+        llvm::legacy::PassManager pass;
+        auto rpos = llvm::buffer_ostream(ros);
+        targetMachine->addPassesToEmitFile(pass, rpos, nullptr, llvm::TargetMachine::CGFT_ObjectFile );
+        pass.run(*mod);
+    }
+
+    return true;
 }
 
 llvm::Type* AirContext::$( $eprototype proto ) {
@@ -287,6 +340,27 @@ llvm::StructType* AirContext::$t( const string& symbol ) {
     auto& ty = named_types[symbol];
     if( !ty ) ty = llvm::StructType::create(*this, symbol);
     return ty;
+}
+
+llvm::GlobalVariable* AirContext::$e( $classdef def ) {
+    auto entity_ty = $t("entity_struct."+SemanticContext::GetBinarySymbol(($node)def));
+    auto entity_nm = "entity."+SemanticContext::GetBinarySymbol(($node)def);
+    return (llvm::GlobalVariable*)module->getOrInsertGlobal(entity_nm, entity_ty);
+}
+
+llvm::GlobalVariable* AirContext::createGlobalStr( const string& str ) {
+    using namespace llvm;
+
+    auto builder = IRBuilder<>(*this);
+
+    vector<Constant*> init;
+    for( auto c : str ) init.push_back(builder.getInt8(c));
+    init.push_back(builder.getInt8(0));
+
+    auto ai8 = ArrayType::get(builder.getInt8Ty(), str.length()+1);
+    auto arr = ConstantArray::get(ai8, init);
+
+    return new GlobalVariable(*alioth, ai8, true, GlobalValue::ExternalLinkage, arr, str);
 }
 
 }

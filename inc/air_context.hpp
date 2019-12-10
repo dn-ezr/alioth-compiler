@@ -45,7 +45,11 @@ class AirContext : public llvm::LLVMContext {
 
         /**
          * @member module : 当前正在翻译的模块 */
-        std::unique_ptr<llvm::Module> module;
+        std::shared_ptr<llvm::Module> module;
+
+        /**
+         * @member alioth : 内置模块 */
+        std::shared_ptr<llvm::Module> alioth;
 
         /**
          * @member named_types : 具名类型表 */
@@ -79,7 +83,16 @@ class AirContext : public llvm::LLVMContext {
          */
         bool operator()( $module mod );
 
+        /**
+         * @operator () : 处理alioth模块
+         * @desc :
+         *  尝试将alioth模块翻译至机器码,输出至目标输出流 */
+        bool operator()( ostream& os, bool ir = false );
+
     private:
+
+        void initInlineStructures();
+
         bool translateModule( $module );
         bool translateDefinition( $definition );
         bool translateImplementation( $implementation );
@@ -116,6 +129,9 @@ class AirContext : public llvm::LLVMContext {
         /** 产生一个start函数作为入口,它将整理命令行参数，调用入口方法 */
         bool generateStartFunction( $metdef met );
 
+        /** 产生输出入 */
+        bool generateOutput( std::shared_ptr<llvm::Module> mod, ostream& os, bool ir );
+
         llvm::Type* $( $eprototype );
 
         llvm::Type* $( $typeexpr );
@@ -127,6 +143,19 @@ class AirContext : public llvm::LLVMContext {
          *  若对应类型不存在，则先构建空的类型填入表中，再返回
          */
         llvm::StructType* $t( const std::string& );
+
+        /**
+         * @method $e : 获取类实体的全局变量
+         * @desc :
+         *  若尚未创建则插入
+         */
+        llvm::GlobalVariable* $e( $classdef def );
+
+        /**
+         * @method createGlobalStr : 创建全局字符串
+         * @desc : 在alioth模块创建全局变量
+         */
+        llvm::GlobalVariable* createGlobalStr( const string& str );
 };
 
 }
