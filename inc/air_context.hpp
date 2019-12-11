@@ -13,6 +13,32 @@ class SemanticContext;
 class module;
 using $module = agent<module>;
 
+/** 用于快速判断方法签名特点的方法属性 */
+using metattrs = int;
+namespace metattr {
+
+    /** 有this追加参数存在 */
+    constexpr metattrs tsarg = 0x01;
+
+    /** 没有普通参数 */
+    constexpr metattrs noarg = 0x02;
+
+    /** 启用可变参数 */
+    constexpr metattrs vaarg = 0x04;
+
+    /** 返回结构 */
+    constexpr metattrs retst = 0x08;
+
+    /** 返回运行时类型识别包 */
+    constexpr metattrs retri = 0x10;
+
+    /** 返回引用 */
+    constexpr metattrs retrf = 0x20;
+
+    /** [检查用]返回结构复杂 */
+    constexpr metattrs retcm = retrf|retri|retst;
+};
+
 /**
  * @class AirContext : AIR上下文
  * @desc :
@@ -54,6 +80,14 @@ class AirContext : public llvm::LLVMContext {
         /**
          * @member named_types : 具名类型表 */
         std::map<std::string,llvm::StructType*> named_types;
+
+        /**
+         * @member element_values : 具名元素表 */
+        std::map<$element,llvm::Value*> element_values;
+
+        /**
+         * @member method_attrs : 方法属性 */
+        std::map<$metdef,metattrs> method_attrs;
 
     public:
 
@@ -144,6 +178,8 @@ class AirContext : public llvm::LLVMContext {
         llvm::Type* $t( $eprototype );
 
         llvm::Type* $t( $typeexpr );
+
+        metattrs $a( $metdef );
 
         /**
          * @method $ : 获取具名类型

@@ -117,14 +117,11 @@ bool AirContext::operator()( $module semantic, ostream& os, bool ir ) {
 
     string error;
     auto errrso = llvm::raw_string_ostream(error);
-    for( auto& fun : module->getFunctionList() )
-        if( error.clear(); llvm::verifyFunction(fun, &errrso) )
-            diagnostics[semantic->sig->name]("81", error), success = false;
-    if( error.clear(); llvm::verifyModule(*module, &errrso) )
-        diagnostics[semantic->sig->name]("81", error), success = false;
-    if( !success ) return false;
+    if( llvm::verifyModule(*module, &errrso) )
+        errrso.flush(), diagnostics[semantic->sig->name]("81", error), success = false;
+    if( !success and !ir ) return false;
 
-    success = success and generateOutput(module, os, ir);
+    success = generateOutput(module, os, ir) and success;
     return success;
 }
 
@@ -226,30 +223,34 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
 
     bool success = true;
 
-    vector<Type*> args; 
-    Type* ret = nullptr;
-    for( auto arg : impl->arguments ) 
-        args.push_back($t(arg->proto));
-    if( not impl->meta )
-        args.insert(args.begin(), $t(SemanticContext::GetThisClassDef(($node)impl))->getPointerTo());
-    if( impl->ret_proto->dtype->is_type(UnknownType) ) {
-        args.push_back($t("unknown")->getPointerTo());
-        ret = Type::getInt32Ty(*this);
-    }else if( impl->ret_proto->etype == eprototype::obj and impl->ret_proto->dtype->is_type(StructType) ) {
-        args.push_back($t(impl->ret_proto)->getPointerTo());
-        ret = Type::getInt32Ty(*this);
-    } else if( impl->ret_proto->etype == eprototype::ref ) {
-        args.push_back($t("reference")->getPointerTo());
-        ret = Type::getInt32Ty(*this);
-    } else {
-        ret = $t(impl->ret_proto);
+    /** 获取函数 */
+    auto def = ($metdef)SemanticContext::GetDefinition(($implementation)impl);
+    auto ft = $t(def);
+    auto fp = (Function*)module->getOrInsertFunction(SemanticContext::GetBinarySymbol(($node)impl),ft);
+    auto bb = BasicBlock::Create(*this, "", fp );
+    auto builder = IRBuilder<>(bb);
+    auto attrs = $a(def);
+
+    /** 存储参数以获取地址 */
+    auto argi = fp->arg_begin();
+    if( (attrs&metattr::retcm) and (attrs&metattr::tsarg) ) {
+        argi++->setName("return");
+        argi++->setName("this");
+    } else if( attrs&metattr::retcm ) {
+        argi++->setName("return");
+    } else if( attrs&metattr::tsarg ) {
+        argi++->setName("this");
     }
-    auto ft = FunctionType::get(
-        ret,
-        args,
-        (bool)impl->va_arg
-    );
-    module->getOrInsertFunction(SemanticContext::GetBinarySymbol(($node)impl),ft);
+    for( auto arg : impl->arguments ) {
+        argi->setName((string)arg->name);
+        if( arg->proto->etype == eprototype::obj and arg->proto->dtype->is_type(StructType) ) {
+            element_values[arg] = argi;
+        } else {
+            auto addr = element_values[arg] = builder.CreateAlloca($t(arg->proto));
+            builder.CreateStore(argi,addr);
+        }
+        argi++;
+    }
     
     return success;
 }
@@ -327,18 +328,19 @@ llvm::FunctionType* AirContext::$t( $metdef def ) {
     using namespace llvm;
 
     vector<Type*> args;
+    auto attrs = $a(def);
     Type* ret = nullptr;
     for( auto arg : def->arguments ) 
         args.push_back($t(arg->proto));
-    if( not def->meta )
+    if( attrs&metattr::tsarg )
         args.insert(args.begin(), $t(SemanticContext::GetThisClassDef(($node)def))->getPointerTo());
-    if( def->ret_proto->dtype->is_type(UnknownType) ) {
+    if( attrs&metattr::retri ) {
         args.push_back($t("unknown")->getPointerTo());
         ret = Type::getInt32Ty(*this);
-    }else if( def->ret_proto->etype == eprototype::obj and def->ret_proto->dtype->is_type(StructType) ) {
+    }else if( attrs&metattr::retst ) {
         args.push_back($t(def->ret_proto)->getPointerTo());
         ret = Type::getInt32Ty(*this);
-    } else if( def->ret_proto->etype == eprototype::ref ) {
+    } else if( attrs&metattr::retrf ) {
         args.push_back($t("reference")->getPointerTo());
         ret = Type::getInt32Ty(*this);
     } else {
@@ -417,6 +419,21 @@ llvm::Type* AirContext::$t( $typeexpr type ) {
         } break;
     }
     return nullptr;
+}
+
+metattrs AirContext::$a( $metdef def ) {
+    if( method_attrs.count(def) ) return method_attrs[def];
+
+    auto& attrs = method_attrs[def];
+
+    if( def->arguments.size() == 0 ) attrs |= metattr::noarg;
+    if( not def->meta ) attrs |= metattr::tsarg;
+    if( def->ret_proto->dtype->is_type(UnknownType) ) attrs |= metattr::retri;
+    if( def->ret_proto->etype == eprototype::obj and def->ret_proto->dtype->is_type(StructType) ) attrs |= metattr::retst;
+    if( def->ret_proto->etype == eprototype::ref ) attrs |= metattr::retrf;
+    if( def->va_arg ) attrs |= metattr::vaarg;
+
+    return attrs;
 }
 
 llvm::StructType* AirContext::$t( const string& symbol ) {

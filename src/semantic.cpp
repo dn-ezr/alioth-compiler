@@ -758,8 +758,9 @@ $definition SemanticContext::GetDefinition( $implementation impl ) {
             if( (bool)metd->meta xor (bool)meti->meta ) continue;
             if( metd->arguments.size() != meti->arguments.size() ) continue;
             for( auto i = 0; i < metd->arguments.size(); i++ )
-                if( !IsIdentical(metd->arguments[i]->proto, meti->arguments[i]->proto) ) continue;
-            if( !IsIdentical(metd->ret_proto,meti->ret_proto) ) continue;
+                if( !IsIdentical(metd->arguments[i]->proto, meti->arguments[i]->proto, true) ) continue;
+            if( !IsIdentical(metd->ret_proto,meti->ret_proto, true) ) continue;
+            return ($definition)metd;
         } else if( auto opd = ($opdef)def; opd ) {
             auto opi = ($opimpl)impl;
             if( opd->modifier != opi->modifier ) continue;
@@ -767,9 +768,10 @@ $definition SemanticContext::GetDefinition( $implementation impl ) {
             if( opd->subtitle != opi->subtitle ) continue;
             if( opd->arguments.size() != opi->arguments.size() ) continue;
             for( auto i = 0; i < opd->arguments.size(); i++ )
-                if( !IsIdentical(opd->arguments[i]->proto, opi->arguments[i]->proto) ) continue;
+                if( !IsIdentical(opd->arguments[i]->proto, opi->arguments[i]->proto, true) ) continue;
             if( (bool)opd->ret_proto xor (bool)opi->ret_proto ) continue;
-            if( !IsIdentical(opd->ret_proto,opi->ret_proto) ) continue;
+            if( !IsIdentical(opd->ret_proto,opi->ret_proto, true) ) continue;
+            return ($definition)opd;
         }
     }
 
