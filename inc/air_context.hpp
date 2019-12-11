@@ -132,9 +132,18 @@ class AirContext : public llvm::LLVMContext {
         /** 产生输出入 */
         bool generateOutput( std::shared_ptr<llvm::Module> mod, ostream& os, bool ir );
 
-        llvm::Type* $( $eprototype );
+        llvm::StructType* $t( $classdef );
+        llvm::StructType* $et( $classdef );
 
-        llvm::Type* $( $typeexpr );
+        llvm::Type* $t( $attrdef );
+
+        llvm::FunctionType* $t( $metdef );
+
+        llvm::FunctionType* $t( $opdef );
+
+        llvm::Type* $t( $eprototype );
+
+        llvm::Type* $t( $typeexpr );
 
         /**
          * @method $ : 获取具名类型

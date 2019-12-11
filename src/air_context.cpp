@@ -166,19 +166,23 @@ bool AirContext::translateClassDefinition( $classdef def ) {
     bool success = true;
 
     /** 产生布局类型 */
-    if( def->targf.size() and def->targs.size() == 0 ) return true;
+    if( def->targf.size() and def->targs.size() == 0 ) {
+        for( auto usage : def->usages )
+            success = translateClassDefinition(usage) and success;
+        return success;
+    }
     auto table = SemanticContext::GetInheritTable(def) << def;
     vector<llvm::Type*> layout_meta;
     vector<llvm::Type*> layout_inst;
     for( auto layout : table )
         for( auto def : layout->defs ) if( auto attr = ($attrdef)def; attr) {
-            if( attr->meta ) layout_meta.push_back($(attr->proto));
-            else layout_inst.push_back($(attr->proto));
+            if( attr->meta ) layout_meta.push_back($t(attr));
+            else layout_inst.push_back($t(attr));
         }
 
     /** 产生类型 */
-    auto entity_ty = $t("entity_struct."+SemanticContext::GetBinarySymbol(($node)def));
-    auto instance_ty = $t("struct."+SemanticContext::GetBinarySymbol(($node)def));
+    auto entity_ty = (llvm::StructType*)$et(def);
+    auto instance_ty = (llvm::StructType*)$t(def);
 
     /** 填充结构 */
     entity_ty->setBody(layout_meta);
@@ -200,21 +204,52 @@ bool AirContext::translateEnumDefinition( $enumdef ) {
     return success;
 }
 
-bool AirContext::translateMethodDefinition( $metdef ) {
+bool AirContext::translateMethodDefinition( $metdef def ) {
+    using namespace llvm;
+
+    bool success = true;
+
+    module->getOrInsertFunction(SemanticContext::GetBinarySymbol(($node)def),$t(def));
+    
+    return success;
+}
+
+bool AirContext::translateOperatorDefinition( $opdef def ) {
     bool success = true;
     
     return success;
 }
 
-bool AirContext::translateOperatorDefinition( $opdef ) {
-    bool success = true;
-    
-    return success;
-}
 
+bool AirContext::translateMethodImplementation( $metimpl impl ) {
+    using namespace llvm;
 
-bool AirContext::translateMethodImplementation( $metimpl ) {
     bool success = true;
+
+    vector<Type*> args; 
+    Type* ret = nullptr;
+    for( auto arg : impl->arguments ) 
+        args.push_back($t(arg->proto));
+    if( not impl->meta )
+        args.insert(args.begin(), $t(SemanticContext::GetThisClassDef(($node)impl))->getPointerTo());
+    if( impl->ret_proto->dtype->is_type(UnknownType) ) {
+        args.push_back($t("unknown")->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    }else if( impl->ret_proto->etype == eprototype::obj and impl->ret_proto->dtype->is_type(StructType) ) {
+        args.push_back($t(impl->ret_proto)->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    } else if( impl->ret_proto->etype == eprototype::ref ) {
+        args.push_back($t("reference")->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    } else {
+        ret = $t(impl->ret_proto);
+    }
+    auto ft = FunctionType::get(
+        ret,
+        args,
+        (bool)impl->va_arg
+    );
+    module->getOrInsertFunction(SemanticContext::GetBinarySymbol(($node)impl),ft);
     
     return success;
 }
@@ -270,15 +305,63 @@ bool AirContext::generateOutput( shared_ptr<llvm::Module> mod, ostream& os, bool
     return true;
 }
 
-llvm::Type* AirContext::$( $eprototype proto ) {
-    SemanticContext::$(proto);
-
-    if( proto->dtype->is_type(UnknownType) ) return $(proto->dtype);
-    if( proto->etype == eprototype::ref or proto->etype == eprototype::rel ) return $t("reference");
-    else return  $(proto->dtype);
+llvm::StructType* AirContext::$t( $classdef def ) {
+    return $t("struct."+SemanticContext::GetBinarySymbol(($node)def));
 }
 
-llvm::Type* AirContext::$( $typeexpr type ) {
+llvm::StructType* AirContext::$et( $classdef def ) {
+    return $t("entity_struct."+SemanticContext::GetBinarySymbol(($node)def));
+}
+
+llvm::Type* AirContext::$t( $attrdef attr ) {
+    auto type = $t(attr->proto);
+    if( type and attr->arr.size() ) {
+        auto c = 1;
+        for( auto arr : attr->arr ) c *= arr;
+        type = llvm::ArrayType::get(type, c);
+    }
+    return type;
+}
+
+llvm::FunctionType* AirContext::$t( $metdef def ) {
+    using namespace llvm;
+
+    vector<Type*> args;
+    Type* ret = nullptr;
+    for( auto arg : def->arguments ) 
+        args.push_back($t(arg->proto));
+    if( not def->meta )
+        args.insert(args.begin(), $t(SemanticContext::GetThisClassDef(($node)def))->getPointerTo());
+    if( def->ret_proto->dtype->is_type(UnknownType) ) {
+        args.push_back($t("unknown")->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    }else if( def->ret_proto->etype == eprototype::obj and def->ret_proto->dtype->is_type(StructType) ) {
+        args.push_back($t(def->ret_proto)->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    } else if( def->ret_proto->etype == eprototype::ref ) {
+        args.push_back($t("reference")->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    } else {
+        ret = $t(def->ret_proto);
+    }
+    auto ft = FunctionType::get(
+        ret,
+        args,
+        (bool)def->va_arg
+    );
+
+    return ft;
+}
+
+llvm::Type* AirContext::$t( $eprototype proto ) {
+    SemanticContext::$(proto);
+
+    if( proto->dtype->is_type(UnknownType) ) return $t(proto->dtype);
+    if( proto->etype == eprototype::ref or proto->etype == eprototype::rel ) return $t("reference");
+    else return  $t(proto->dtype);
+}
+
+llvm::Type* AirContext::$t( $typeexpr type ) {
     SemanticContext::$(type);
     auto builder = llvm::IRBuilder<>(*this);
 
@@ -292,15 +375,15 @@ llvm::Type* AirContext::$( $typeexpr type ) {
         case CallableType: {
             auto call = ($callable_type)type->sub;
             vector<llvm::Type*> argts;
-            for( auto arg : call->arg_protos ) argts.push_back($(arg));
+            for( auto arg : call->arg_protos ) argts.push_back($t(arg));
             return llvm::FunctionType::get(
-                $(call->ret_proto),
+                $t(call->ret_proto),
                 argts,
                 (bool)call->va_arg
             );
         } break;
         case ConstraintedPointerType: case UnconstraintedPointerType: {
-            return $(($typeexpr)type->sub)->getPointerTo();
+            return $t(($typeexpr)type->sub)->getPointerTo();
         } break;
         case NullPointerType: {
             return builder.getVoidTy()->getPointerTo();
@@ -343,7 +426,7 @@ llvm::StructType* AirContext::$t( const string& symbol ) {
 }
 
 llvm::GlobalVariable* AirContext::$e( $classdef def ) {
-    auto entity_ty = $t("entity_struct."+SemanticContext::GetBinarySymbol(($node)def));
+    auto entity_ty = $et(def);
     auto entity_nm = "entity."+SemanticContext::GetBinarySymbol(($node)def);
     return (llvm::GlobalVariable*)module->getOrInsertGlobal(entity_nm, entity_ty);
 }

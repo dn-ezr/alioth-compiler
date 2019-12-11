@@ -361,6 +361,12 @@ bool SemanticContext::validateAttributeDefinition(  $attrdef def ) {
     } else if( def->proto->etype == eprototype::ptr and !def->proto->dtype->is_type(PointerTypeMask) ) {
         success = false;
         diagnostics[def->getDocUri()]("42", def->phrase);
+    } else if( def->proto->etype == eprototype::rel ) {
+        success = false;
+        diagnostics[def->getDocUri()]("117", def->proto->phrase);
+    } else if( def->proto->etype == eprototype::ref and def->arr.size() ) {
+        success = false;
+        diagnostics[def->getDocUri()]("118", def->phrase);
     }
 
     return success;
@@ -615,6 +621,7 @@ string SemanticContext::GetBinarySymbol( $node s ) {
                 if( auto cd = ($classdef)d; cd ) symbol = (string)cd->name + "::" + symbol;
                 else if( auto md = ($module)d; md ) symbol = (string)md->sig->name + "::" + symbol;
             }
+            symbol += "::" + (string)impl->name;
         }
         /** 接下来的工作在原型处处理 */
     }
@@ -729,7 +736,7 @@ string SemanticContext::GetBinarySymbol( $node s ) {
             }
             if( call->ret_proto ) symbol += "=>" + GetBinarySymbol(($node)call->ret_proto);
             symbol += ")";
-            symbol += GetBinarySymbol(($node)call->ret_proto);
+            // symbol += GetBinarySymbol(($node)call->ret_proto);
         }
     }
 
