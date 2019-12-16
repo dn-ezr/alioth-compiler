@@ -251,11 +251,14 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
         }
         argi++;
     }
+
+    // success = translateBlockStatement(impl->body) and success;
     
     return success;
 }
 
-bool AirContext::translateOperatorImplementation( $opimpl ) {
+bool AirContext::translateOperatorImplementation( $opimpl impl ) {
+    using namespace llvm;
     bool success = true;
     
     return success;

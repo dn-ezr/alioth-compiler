@@ -166,19 +166,36 @@ class AirContext : public llvm::LLVMContext {
         /** 产生输出入 */
         bool generateOutput( std::shared_ptr<llvm::Module> mod, ostream& os, bool ir );
 
+        /**
+         * @method $t : 获取类实例的类型 */
         llvm::StructType* $t( $classdef );
+
+        /**
+         * @method $et : 获取类实体的类型 */
         llvm::StructType* $et( $classdef );
 
+        /**
+         * @method $t : 获取属性类型 */
         llvm::Type* $t( $attrdef );
 
+        /**
+         * @method $t : 获取方法类型 */
         llvm::FunctionType* $t( $metdef );
 
+        /**
+         * @method $t : 获取运算符的函数类型 */
         llvm::FunctionType* $t( $opdef );
 
+        /**
+         * @member $t : 获取元素原型的类型 */
         llvm::Type* $t( $eprototype );
 
+        /**
+         * @member $t : 解算数据类型 */
         llvm::Type* $t( $typeexpr );
 
+        /**
+         * @member $a : 获取方法属性 */
         metattrs $a( $metdef );
 
         /**

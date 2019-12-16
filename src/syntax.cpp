@@ -1620,7 +1620,7 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
             } break;
         case 2:
             if( it->is(VT::L::LABEL) ) {
-                ref->host = constructNameExpression(ref,true);
+                ref->host = constructNameExpression(scope,true);
                 if( !ref->host ) return nullptr;
             } else if( it->is(VN::NAMEEXPR) ) {
                 movi(3);
@@ -1649,7 +1649,9 @@ $opimpl SyntaxContext::constructOperatorImplementation( $scope scope ) {
                 if( !constructParameterList(ref, *ref, false) ) return nullptr;
             } break;
         case 5:
-            if( it->is(VN::ELEPROTO) or ref->name.is(PVT::SCTOR,PVT::CCTOR,PVT::MCTOR,PVT::LCTOR) ) {
+            if( it->is(VN::ELEPROTO) ) {
+                movi(6);
+            } else if( it->is(VN::ELEPROTO) or ref->name.is(PVT::SCTOR,PVT::CCTOR,PVT::MCTOR,PVT::LCTOR) ) {
                 movi(6, 0);
             } else if( auto proto = constructElementPrototype(ref,true); proto ) {
                 ref->ret_proto = proto;
