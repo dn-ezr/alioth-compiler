@@ -407,13 +407,6 @@ class SemanticContext {
          */
         static elements MinimalCall( callable* call, bool order = true );
 
-        /**
-         * @method DetectElementPrototype : 推导元素原型
-         * @desc :
-         *  推导一个语句的元素原型,失败则返回空
-         */
-        static $eprototype DetectElementPrototype( $exprstmt expr );
-
     protected:
         class searching_layer {
             private:

@@ -73,6 +73,17 @@ bool SemanticContext::associateModule( $signature sig ) {
         mod->trans->defs = defs;
     }
 
+    for( auto def : mod->trans->defs ) {
+        if( auto opd = ($opdef)def; opd ) {
+            diagnostics[def->getDocUri()]("119", def->name), success = false;
+        } else if( auto md = ($metdef)def; md ) {
+            if( !md->meta ) {
+                md->meta = token(VT::META);
+                diagnostics[def->getDocUri()]("120", def->name);
+            }
+        }
+    }
+
     if( !success ) mod = nullptr;
     return success;
 }
@@ -1315,123 +1326,6 @@ elements SemanticContext::MinimalCall( callable* call, bool order ) {
         }
     }
     return ret;
-}
-
-$eprototype SemanticContext::DetectElementPrototype( $exprstmt expr ) {
-
-    if( auto e = ($constant)expr; e ) {
-        $typeexpr dtype;
-        eprototype::type_t etype = eprototype::var;
-        bool cons = false;
-        switch( e->value.id ) {
-            case VT::L::CHAR : {
-                dtype = typeexpr::make(e->getScope(),e->phrase, NamedType,
-                    (anything)nameexpr::make(e->getScope(),e->phrase,token("char")) );
-            } break;
-            case VT::L::STRING : {
-                dtype = typeexpr::make(e->getScope(),e->phrase, NamedType,
-                    (anything)nameexpr::make(e->getScope(),e->phrase,token("string")) );
-            } break;
-            case VT::L::FALSE : case VT::L::TRUE : {
-                dtype = typeexpr::make(e->getScope(),e->phrase, BooleanType);
-            } break;
-            case VT::L::FLOAT : {
-                dtype = typeexpr::make(e->getScope(),e->phrase, Float64Type);
-            } break;
-            case VT::L::NULL : {
-                dtype = typeexpr::make(e->getScope(),e->phrase, NullPointerType);
-            } break;
-            case VT::L::I::B : {
-                const auto bits = e->value.tx.size()-2;
-                const auto bytes = (bits+7)/8;
-                if( bytes <= 1 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
-                else if( bytes <= 2 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
-                else if( bytes <= 4 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
-                else if( bytes <= 8 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
-                else return nullptr;
-            } break;
-            case VT::L::I::H : {
-                const auto bits = e->value.tx.size()-2;
-                const auto bytes = (bits+1)/2;
-                if( bytes <= 1 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
-                else if( bytes <= 2 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
-                else if( bytes <= 4 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
-                else if( bytes <= 8 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
-                else return nullptr;
-            } break;
-            case VT::L::I::O : {
-                const auto bits = e->value.tx.size()-2;
-                const auto bytes = (bits+2)/3;
-                if( bytes <= 1 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
-                else if( bytes <= 2 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
-                else if( bytes <= 4 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
-                else if( bytes <= 8 ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
-                else return nullptr;
-            } break;
-            case VT::L::I::N : {
-                const auto value = stoull(e->value.tx);
-                if( value <= INT8_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int8Type );
-                else if( value <= UINT8_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint8Type );
-                else if( value <= INT16_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int16Type );
-                else if( value <= UINT16_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint16Type );
-                else if( value <= INT32_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int32Type );
-                else if( value <= UINT32_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint32Type );
-                else if( value <= INT64_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Int64Type );
-                else if( value <= UINT64_MAX ) dtype = typeexpr::make(e->getScope(),e->phrase, Uint64Type );
-                else return nullptr;
-            } break;
-            case VT::L::THIS : {
-                auto impl = e->getScope();
-                while( impl and !impl->is(node::IMPLEMENTATION) ) impl = impl->getScope();
-                if( !impl ) return nullptr;
-                if( auto met = ($metimpl)impl; met and met->cons ) cons = true;
-                dtype = typeexpr::make(e->getScope(), e->phrase, ThisClassType);
-                if( cons ) dtype = typeexpr::make(e->getScope(),e->phrase, ConstraintedPointerType, (anything)dtype );
-                else dtype = typeexpr::make(e->getScope(),e->phrase, ConstraintedPointerType, (anything)dtype );
-            } break;
-            case VT::CLASS : {
-                dtype = typeexpr::make(e->getScope(), e->phrase, ThisClassType);
-            } break;
-            case VT::L::LABEL: {
-                dtype = typeexpr::make(e->getScope(), e->phrase, EnumType);
-            } break;
-            default: return nullptr;
-        }
-        return eprototype::make(e->getScope(), e->phrase, dtype, etype, cons?token("const"):token());
-    } else if( auto e = ($nameexpr)expr; e ) {
-        auto res = $(e);
-        if( res.size() != 1 ) return nullptr;
-        if( auto ex = ($exprstmt)res[0]; ex ) return DetectElementPrototype(ex);
-        return nullptr;
-    } else if( auto e = ($typeexpr)expr; e ) {
-        return nullptr;
-    } else if( auto e = ($monoexpr)expr; e ) {
-        
-    } else if( auto e = ($binexpr)expr; e ) {
-
-    } else if( auto e = ($callexpr)expr; e ) {
-
-    } else if( auto e = ($lambdaexpr)expr; e ) {
-
-    } else if( auto e = ($sctorexpr)expr; e ) {
-
-    } else if( auto e = ($lctorexpr)expr; e ) {
-
-    } else if( auto e = ($tctorexpr)expr; e ) {
-
-    } else if( auto e = ($newexpr)expr; e ) {
-
-    } else if( auto e = ($delexpr)expr; e ) {
-
-    } else if( auto e = ($doexpr)expr; e ) {
-
-    } else if( auto e = ($tconvexpr)expr; e ) {
-
-    } else if( auto e = ($aspectexpr)expr; e ) {
-
-    } else if( auto e = ($mbrexpr)expr; e ) {
-
-    }
 }
 
 SemanticContext::searching_layer::searching_layer( $scope scope, $nameexpr name ):layers(nullptr) {

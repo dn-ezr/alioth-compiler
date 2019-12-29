@@ -3,8 +3,10 @@
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/Target/TargetMachine.h>
+#include <llvm/IR/IRBuilder.h>
 #include "diagnostic.hpp"
 #include "syntax.hpp"
+#include "value.hpp"
 #include "agent.hpp"
 
 namespace alioth {
@@ -89,6 +91,14 @@ class AirContext : public llvm::LLVMContext {
          * @member method_attrs : 方法属性 */
         std::map<$metdef,metattrs> method_attrs;
 
+        /**
+         * @member scoped_elements : 作用域包裹的元素 */
+        std::map<$scope,map<string, $element>> scoped_elements;
+
+        /**
+         * @member scoped_values : 作用域包裹的无名量 */
+        std::map<$scope,chainz<$value>> scoped_values;
+
     public:
 
         /**
@@ -139,26 +149,32 @@ class AirContext : public llvm::LLVMContext {
         bool translateMethodImplementation( $metimpl );
         bool translateOperatorImplementation( $opimpl );
 
-        bool translateStatement( $statement stmt );
-        bool translateBlockStatement( $blockstmt stmt );
-        bool translateElementStatement( $element stmt );
-        bool translateBranchStatement( $branchstmt stmt );
-        bool translateSwitchStatement( $switchstmt stmt );
-        bool translateAssumeStatement( $assumestmt stmt );
-        bool translateLoopStatement( $loopstmt stmt );
-        bool translateFlowControlStatement( $fctrlstmt stmt );
-        bool translateDoStatement( $dostmt stmt );
+        bool translateStatement( llvm::IRBuilder<>& builder, $statement stmt );
+        bool translateBlockStatement( llvm::IRBuilder<>& builder, $blockstmt stmt );
+        bool translateElementStatement( llvm::IRBuilder<>& builder, $element stmt );
+        bool translateBranchStatement( llvm::IRBuilder<>& builder, $branchstmt stmt );
+        bool translateSwitchStatement( llvm::IRBuilder<>& builder, $switchstmt stmt );
+        bool translateAssumeStatement( llvm::IRBuilder<>& builder, $assumestmt stmt );
+        bool translateLoopStatement( llvm::IRBuilder<>& builder, $loopstmt stmt );
+        bool translateFlowControlStatement( llvm::IRBuilder<>& builder, $fctrlstmt stmt );
+        bool translateDoStatement( llvm::IRBuilder<>& builder, $dostmt stmt );
 
-        bool translateExpressionStatement( $exprstmt stmt );
-        bool translateNameExpression( $nameexpr );
-        bool translateConstantExpression( $constant );
-        bool translateListConstructingExpression( $lctorexpr );
-        bool translateStructuralConstructingExpression( $sctorexpr );
-        bool translateTupleConstructingExpression( $tctorexpr );
-        bool translateLambdaExpression( $lambdaexpr );
-        bool translateNewExpression( $newexpr );
-        bool translateDeleteExpression( $delexpr );
-        bool translateDoExpression( $doexpr );
+        $value translateExpressionStatement( llvm::IRBuilder<>& builder, $exprstmt stmt );
+        $value translateMonoExpression( llvm::IRBuilder<>& builder, $monoexpr expr );
+        $value translateBinaryExpression( llvm::IRBuilder<>& builder, $binexpr expr );
+        $value translateCallExpression( llvm::IRBuilder<>& builder, $callexpr expr );
+        $value translateTypeConvertExpression( llvm::IRBuilder<>& builder, $tconvexpr expr );
+        $value translateAspectExpression( llvm::IRBuilder<>& builder, $aspectexpr expr );
+        $value translateMemberExpression( llvm::IRBuilder<>& builder, $mbrexpr expr );
+        $value translateNameExpression( llvm::IRBuilder<>& builder, $nameexpr expr );
+        $value translateConstantExpression( llvm::IRBuilder<>& builder, $constant expr );
+        $value translateListConstructingExpression( llvm::IRBuilder<>& builder, $lctorexpr expr );
+        $value translateStructuralConstructingExpression( llvm::IRBuilder<>& builder, $sctorexpr expr );
+        $value translateTupleConstructingExpression( llvm::IRBuilder<>& builder, $tctorexpr expr );
+        $value translateLambdaExpression( llvm::IRBuilder<>& builder, $lambdaexpr expr );
+        $value translateNewExpression( llvm::IRBuilder<>& builder, $newexpr expr );
+        $value translateDeleteExpression( llvm::IRBuilder<>& builder, $delexpr expr );
+        $value translateDoExpression( llvm::IRBuilder<>& builder, $doexpr expr );
 
         /** 产生一个start函数作为入口,它将整理命令行参数，调用入口方法 */
         bool generateStartFunction( $metdef met );
@@ -212,6 +228,11 @@ class AirContext : public llvm::LLVMContext {
          *  若尚未创建则插入
          */
         llvm::GlobalVariable* $e( $classdef def );
+
+        /**
+         * @method $impl : 获取语句所在的实现
+         */
+        $implementation $impl( $statement stmt );
 
         /**
          * @method createGlobalStr : 创建全局字符串

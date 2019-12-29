@@ -233,12 +233,27 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
 
     /** 存储参数以获取地址 */
     auto argi = fp->arg_begin();
-    if( (attrs&metattr::retcm) and (attrs&metattr::tsarg) ) {
+    if( attrs&metattr::retcm ) {
+        $element rt = new element;
+        rt->name = token("return");
+        element_values[rt] = argi;
+        scoped_elements[impl][rt->name] = rt;
         argi++->setName("return");
-        argi++->setName("this");
-    } else if( attrs&metattr::retcm ) {
-        argi++->setName("return");
-    } else if( attrs&metattr::tsarg ) {
+    }
+    if( attrs&metattr::tsarg ) {
+        $element ts = new element;
+        ts->name = token("this");
+        ts->proto = eprototype::make(
+            impl, token("this"), typeexpr::make(
+                impl, token("this"), 
+                (def->cons?ConstraintedPointerType:UnconstraintedPointerType),
+                (anything)typeexpr::make(
+                    impl, token("this"), StructType, def->getScope()
+                )
+            ), eprototype::ptr, token("const")
+        );
+        element_values[ts] = argi;
+        scoped_elements[impl][ts->name] = ts;
         argi++->setName("this");
     }
     for( auto arg : impl->arguments ) {
@@ -249,10 +264,11 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
             auto addr = element_values[arg] = builder.CreateAlloca($t(arg->proto));
             builder.CreateStore(argi,addr);
         }
+        scoped_elements[impl][arg->name] = arg;
         argi++;
     }
 
-    // success = translateBlockStatement(impl->body) and success;
+    success = translateBlockStatement(builder, impl->body) and success;
     
     return success;
 }
@@ -260,8 +276,372 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
 bool AirContext::translateOperatorImplementation( $opimpl impl ) {
     using namespace llvm;
     bool success = true;
-    
+    not_ready_yet;
     return success;
+}
+
+bool AirContext::translateStatement( llvm::IRBuilder<>& builder, $statement stmt ) {
+    if( auto s = ($blockstmt)stmt; s ) {
+        return translateBlockStatement(builder, s);
+    } else if( auto s = ($element)stmt; s ) {
+        return translateElementStatement(builder, s);
+    } else if( auto s = ($branchstmt)stmt; s ) {
+        return translateBranchStatement(builder, s);
+    } else if( auto s = ($switchstmt)stmt; s ) {
+        return translateSwitchStatement(builder, s);
+    } else if( auto s = ($assumestmt)stmt; s ) {
+        return translateAssumeStatement(builder, s);
+    } else if( auto s = ($loopstmt)stmt; s ) {
+        return translateLoopStatement(builder, s);
+    } else if( auto s = ($fctrlstmt)stmt; s ) {
+        return translateFlowControlStatement(builder, s);
+    } else if( auto s = ($dostmt)stmt; s ) {
+        return translateDoStatement(builder, s);
+    } else if( auto s = ($exprstmt)stmt; s ) {
+        return translateExpressionStatement(builder, s );
+    } else {
+        return false;
+    }
+}
+
+bool AirContext::translateBlockStatement( llvm::IRBuilder<>& builder, $blockstmt stmt ) {
+    bool success = true;
+    for( auto s : *stmt ) 
+        success = translateStatement(builder,s) and success;
+    return success;
+}
+
+bool AirContext::translateElementStatement( llvm::IRBuilder<>& builder, $element stmt ) {
+    not_ready_yet;
+    return false;
+}
+
+bool AirContext::translateBranchStatement( llvm::IRBuilder<>& builder, $branchstmt stmt ) {
+    not_ready_yet;
+    return false;
+}
+
+bool AirContext::translateSwitchStatement( llvm::IRBuilder<>& builder, $switchstmt stmt ) {
+    not_ready_yet;
+    return false;
+}
+
+bool AirContext::translateAssumeStatement( llvm::IRBuilder<>& builder, $assumestmt stmt ) {
+    not_ready_yet;
+    return false;
+}
+
+bool AirContext::translateLoopStatement( llvm::IRBuilder<>& builder, $loopstmt stmt ) {
+    not_ready_yet;
+    return false;
+}
+
+bool AirContext::translateFlowControlStatement( llvm::IRBuilder<>& builder, $fctrlstmt stmt ) {
+    bool success = true;
+    if( stmt->action.is(VT::BREAK) ) {
+
+    } else if( stmt->action.is(VT::O::FORCE) ) {
+
+    } else if( stmt->action.is(VT::CONTINUE) ) {
+
+    } else if( stmt->action.is(VT::RETURN) ) {
+        if( stmt->expr ) {
+            auto ex = translateExpressionStatement(builder, stmt->expr);
+            if( !ex ) return false;
+            builder.CreateRet(ex->value);
+        } else {
+            builder.CreateRetVoid();
+        }
+    }
+    return success;
+}
+
+bool AirContext::translateDoStatement( llvm::IRBuilder<>& builder, $dostmt stmt ) {
+    not_ready_yet;
+    return false;
+}
+
+$value AirContext::translateExpressionStatement( llvm::IRBuilder<>& builder, $exprstmt stmt ) {
+    if( auto expr = ($monoexpr)stmt; expr ) {
+        return translateMonoExpression( builder, expr );
+    } else if( auto expr = ($binexpr)stmt; expr ) {
+        return translateBinaryExpression( builder, expr );
+    } else if( auto expr = ($callexpr)stmt; expr ) {
+        return translateCallExpression( builder, expr );
+    } else if( auto expr = ($tconvexpr)stmt; expr ) {
+        return translateTypeConvertExpression( builder, expr );
+    } else if( auto expr = ($aspectexpr)stmt; expr ) {
+        return translateAspectExpression( builder, expr );
+    } else if( auto expr = ($mbrexpr)stmt; expr ) {
+        return translateMemberExpression( builder, expr );
+    } else if( auto expr = ($nameexpr)stmt; expr ) {
+        return translateNameExpression( builder, expr );
+    } else if( auto expr = ($constant)stmt; expr ) {
+        return translateConstantExpression( builder, expr );
+    } else if( auto expr = ($lctorexpr)stmt; expr ) {
+        return translateListConstructingExpression( builder, expr );
+    } else if( auto expr = ($sctorexpr)stmt; expr ) {
+        return translateStructuralConstructingExpression( builder, expr );
+    } else if( auto expr = ($tctorexpr)stmt; expr ) {
+        return translateTupleConstructingExpression( builder, expr );
+    } else if( auto expr = ($lambdaexpr)stmt; expr ) {
+        return translateLambdaExpression( builder, expr );
+    } else if( auto expr = ($newexpr)stmt; expr ) {
+        return translateNewExpression( builder, expr );
+    } else if( auto expr = ($delexpr)stmt; expr ) {
+        return translateDeleteExpression( builder, expr );
+    } else if( auto expr = ($doexpr)stmt; expr ) {
+        return translateDoExpression( builder, expr );
+    } else {
+        internal_error;
+        return nullptr;
+    }
+}
+
+$value AirContext::translateMonoExpression( llvm::IRBuilder<>& builder, $monoexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateBinaryExpression( llvm::IRBuilder<>& builder, $binexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateCallExpression( llvm::IRBuilder<>& builder, $callexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateTypeConvertExpression( llvm::IRBuilder<>& builder, $tconvexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateAspectExpression( llvm::IRBuilder<>& builder, $aspectexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateMemberExpression( llvm::IRBuilder<>& builder, $mbrexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateNameExpression( llvm::IRBuilder<>& builder, $nameexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateConstantExpression( llvm::IRBuilder<>& builder, $constant expr ) {
+    switch( expr->value.id ) {
+        case VT::L::CHAR : {
+            auto dtype = typeexpr::make(expr->getScope(),expr->phrase, NamedType,
+                (anything)nameexpr::make(expr->getScope(),expr->phrase,token("char")) );
+            not_ready_yet;
+            return nullptr;
+        } break;
+        case VT::L::STRING : {
+            auto dtype = typeexpr::make(expr->getScope(),expr->phrase, NamedType,
+                (anything)nameexpr::make(expr->getScope(),expr->phrase,token("string")) );
+            not_ready_yet;
+            return nullptr;
+        } break;
+        case VT::L::FALSE : {
+            auto dtype = typeexpr::make(expr->getScope(),expr->phrase, BooleanType);
+            $value value = new value_t;
+            value->addr = none;
+            value->value = builder.getFalse();
+            value->proto = eprototype::make(expr->getScope(),expr->phrase,dtype);
+            return value;
+        } break;
+        case VT::L::TRUE : {
+            auto dtype = typeexpr::make(expr->getScope(),expr->phrase, BooleanType);
+            $value value = new value_t;
+            value->addr = none;
+            value->value = builder.getTrue();
+            value->proto = eprototype::make(expr->getScope(),expr->phrase,dtype);
+            return value;
+        } break;
+        case VT::L::FLOAT : {
+            $value value = new value_t;
+            auto dtype = typeexpr::make(expr->getScope(),expr->phrase, Float64Type);
+            value->addr = none;
+            value->value = llvm::ConstantFP::get(*this, llvm::APFloat(stod(expr->value.tx)));
+            value->proto = eprototype::make(expr->getScope(), expr->phrase, dtype);
+            return value;
+        } break;
+        case VT::L::NULL : {
+            auto dtype = typeexpr::make(expr->getScope(),expr->phrase, NullPointerType);
+            $value value = new value_t;
+            value->addr = none;
+            value->value = builder.getInt64(0);
+            value->proto = eprototype::make(expr->getScope(),expr->phrase,dtype);
+            return value;
+        } break;
+        case VT::L::I::B : {
+            const auto bits = expr->value.tx.size()-2;
+            const auto bytes = (bits+7)/8;
+            $typeexpr dtype;
+            $value value = new value_t;
+            value->addr = none;
+            auto v = stoull(string(expr->value.tx.begin()+2, expr->value.tx.end()),nullptr, 2);
+            if( bytes <= 1 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint8Type );
+                value->value = builder.getInt8(v);
+            } else if( bytes <= 2 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint16Type );
+                value->value = builder.getInt16(v);
+            } else if( bytes <= 4 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint32Type );
+                value->value = builder.getInt32(v);
+            } else if( bytes <= 8 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint64Type );
+                value->value = builder.getInt64(v);
+            } else return nullptr;
+            value->proto = eprototype::make(expr->getScope(),expr->phrase,dtype);
+            return value;
+        } break;
+        case VT::L::I::H : {
+            const auto bits = expr->value.tx.size()-2;
+            const auto bytes = (bits+1)/2;
+            $typeexpr dtype;
+            $value value = new value_t;
+            value->addr = none;
+            auto v = stoull(string(expr->value.tx.begin()+2, expr->value.tx.end()),nullptr, 16);
+            if( bytes <= 1 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint8Type );
+                value->value = builder.getInt8(v);
+            } else if( bytes <= 2 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint16Type );
+                value->value = builder.getInt16(v);
+            } else if( bytes <= 4 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint32Type );
+                value->value = builder.getInt32(v);
+            } else if( bytes <= 8 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint64Type );
+                value->value = builder.getInt64(v);
+            } else return nullptr;
+            value->proto = eprototype::make(expr->getScope(),expr->phrase,dtype);
+            return value;
+        } break;
+        case VT::L::I::O : {
+            const auto bits = expr->value.tx.size()-2;
+            const auto bytes = (bits+2)/3;
+            $typeexpr dtype;
+            $value value = new value_t;
+            value->addr = none;
+            auto v = stoull(string(expr->value.tx.begin()+2, expr->value.tx.end()),nullptr, 8);
+            if( bytes <= 1 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint8Type );
+                value->value = builder.getInt8(v);
+            } else if( bytes <= 2 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint16Type );
+                value->value = builder.getInt16(v);
+            } else if( bytes <= 4 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint32Type );
+                value->value = builder.getInt32(v);
+            } else if( bytes <= 8 ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint64Type );
+                value->value = builder.getInt64(v);
+            } else return nullptr;
+            value->proto = eprototype::make(expr->getScope(),expr->phrase,dtype);
+            return value;
+        } break;
+        case VT::L::I::N : {
+            const auto n = stoull(expr->value.tx);
+            $typeexpr dtype;
+            $value value = new value_t;
+            value->addr = none;
+            if( n <= INT32_MAX ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Int32Type );
+                value->value = builder.getInt32(n);
+            } else if( n <= UINT32_MAX ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint32Type );
+                value->value = builder.getInt32(n);
+            } else if( n <= INT64_MAX ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Int64Type );
+                value->value = builder.getInt64(n);
+            } else if( n <= UINT64_MAX ) {
+                dtype = typeexpr::make(expr->getScope(),expr->phrase, Uint64Type );
+                value->value = builder.getInt64(n);
+            } else return nullptr;
+            value->proto = eprototype::make(expr->getScope(), expr->phrase, dtype);
+            return value;
+        } break;
+        case VT::L::THIS : {
+            auto impl = $impl(($statement)expr);
+            if( !impl ) return internal_error, nullptr;
+            if( scoped_elements[impl].count("this") ) {
+                auto ts = scoped_elements[impl]["this"];
+                $value value = new value_t;
+                value->addr = none;
+                value->proto = ts->proto;
+                value->value = element_values[ts];
+                return value;
+            } else {
+                diagnostics("121", expr->phrase);
+                return nullptr;
+            }
+        } break;
+        case VT::CLASS : {
+            $value value = new value_t;
+            value->addr = none;
+            value->proto = eprototype::make(
+                expr->getScope(), token("this class"), typeexpr::make(
+                    expr->getScope(), expr->phrase, ThisClassType));
+            value->value = $e(SemanticContext::GetThisClassDef(($node)expr));
+            return value;
+        } break;
+        case VT::L::LABEL: {
+            $value value = new value_t;
+            value->addr = none;
+            auto def = ($enumdef)expr->getScope();
+            if( !def ) return internal_error, nullptr;
+            value->proto = eprototype::make(
+                expr->getScope(), expr->phrase, typeexpr::make(
+                    expr->getScope(), expr->phrase, EnumType, expr->getScope() ));
+            value->value = builder.getInt32(def->items.index(expr));
+            return value;
+        } break;
+        default: return internal_error, nullptr;
+    }
+    return nullptr;
+}
+
+$value AirContext::translateListConstructingExpression( llvm::IRBuilder<>& builder, $lctorexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateStructuralConstructingExpression( llvm::IRBuilder<>& builder, $sctorexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateTupleConstructingExpression( llvm::IRBuilder<>& builder, $tctorexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateLambdaExpression( llvm::IRBuilder<>& builder, $lambdaexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateNewExpression( llvm::IRBuilder<>& builder, $newexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateDeleteExpression( llvm::IRBuilder<>& builder, $delexpr expr ) {
+    not_ready_yet;
+    return nullptr;
+}
+
+$value AirContext::translateDoExpression( llvm::IRBuilder<>& builder, $doexpr expr ) {
+    not_ready_yet;
+    return nullptr;
 }
 
 bool AirContext::generateStartFunction( $metdef met ) {
@@ -449,6 +829,13 @@ llvm::GlobalVariable* AirContext::$e( $classdef def ) {
     auto entity_ty = $et(def);
     auto entity_nm = "entity."+SemanticContext::GetBinarySymbol(($node)def);
     return (llvm::GlobalVariable*)module->getOrInsertGlobal(entity_nm, entity_ty);
+}
+
+$implementation AirContext::$impl( $statement stmt ) {
+    $node n = ($node)stmt;
+    while( n and !n->is(node::IMPLEMENTATION) )
+        n = n->getScope();
+    return ($implementation)n;
 }
 
 llvm::GlobalVariable* AirContext::createGlobalStr( const string& str ) {

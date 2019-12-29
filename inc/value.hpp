@@ -9,16 +9,32 @@ namespace alioth {
 
 struct eprototype;
 using $eprototype = agent<eprototype>;
+struct value_t;
+using $value = agent<value_t>;
+using values = chainz<$value>;
 
 /** @enum addr_t : 描述运算值的地址类型 */
-enum addr_t { none, direct, indirect };
+enum addr_t { 
+    /** 描述立即数，没有地址, value即值(特别的，结构体使用指针) */
+    none, 
+    
+    /** 描述直接寻址, value 是 值的地址 */
+    direct, 
+    
+    /** 描述二级寻址， value 是代理体指针 */
+    indirect, 
+    
+    /** 描述代理寻址, value 是可执行的成员运算 */
+    proxy 
+
+};
 
 /** 
  * @struct value_t : 运算值
  * @desc :
  *  运算值的作用是表述一个运算结果
  */
-struct value_t {
+struct value_t : basic_thing {
     public:
 
         /**
@@ -33,8 +49,15 @@ struct value_t {
          *  direct (simple) -> *obj
          *  none | direct (struct) -> *obj
          *  indirect (simple|struct) -> reference
+         *  proxy (simple|struct) -> function
          **/
         llvm::Value* value;
+
+        /**
+         * @member host : 宿主
+         * @desc :
+         *  成员运算或成员方法的宿主 */
+        $value host;
 
         /**
          * @member proto : 值对应的元素原型

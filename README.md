@@ -1,63 +1,67 @@
 # Alioth Compiler
 
-Alioth Compiler is designed to compile the Alioth programming language.
+> If a version in another language is needed, please refer to the [read me in English](README.en.md)
+
+Alioth编译器被设计用于编译Alioth编程语言。
 
 ![](doc/res/img/icon_with_text.png)
 
 <div style="text-align:center;">
-<span style="margin:0 auto;font-size:48px;font-weight:900;">Current Version 0.3</span><br/>
-<span style="margin:0 auto;font-size:28px;font-weight:900;">Corresponding Language Version 0.9</span>
+<span style="margin:0 auto;font-size:48px;font-weight:900;">当前版本 0.3</span><br/>
+<span style="margin:0 auto;font-size:28px;font-weight:900;">对应语言版本 0.9</span>
 </div>
 
-## Features
+## 特性
 
-- init project workspace structure wherever you want
+- 在你想要的地方初始化项目目录结构
 
-    this compiler can help you generate subdirectories and building scripts needed.
+    编译器可帮您生成项目子路径和项目所需的构建脚本。
 
     ![](doc/res/img/init.gif)
-- communicate with environment through standard input and output stream
+- 通过标准输入输出流与环境交互
 
-    this compiler will ask environment for content of which the file it was going to use.
+    编译器可以与外部环境协商所使用的文档的内容，也可以向外界提供项目的诊断信息，此特性用于向拥有GUI的集成开发环境提供Alioth语法高亮和热语法检查等支持。
 
-## Development environment
+## 开发环境
 
-This compiler can be compiled correctly on platform of linux-x86_64 by "g++-8" which is a c++ compiler who supports c++17 standard.
+编译器可以在`linux-x86_64`平台上被`g++-8`编译器正确编译，`g++-8`是一款支持`GNU C++17`标准的`C++`编译器。
 
-Currently this compiler depends on the LLVM project, run the following commands to setup a development environment with the LLVM library avalible.
+目前，此编译器的开发过程依赖于`LLVM-Core`项目提供的SDK,执行下列指令来建立基于LLVM的开发环境。
 
 ~~~bash
 #!/bin/bash
 
-#This script is written in 2019, we can't ensure that the necessary steps building an available llvm environment doesn't change at the time you're reading this.
+#此脚本编辑于2019年，我们无法保证当您正在阅读此脚本时，构建可用的LLVM开发环境所需的必要步骤没有改变。
 
-# obtain the source code of the llvm core libraries
+# 获取LLVM核心库的源码
 wget http://releases.llvm.org/8.0.0/llvm-8.0.0.src.tar.xz
 tar -xJf llvm-8.0.0.src.tar.xz
 mkdir llvm-8.0.0.src/build
 cd llvm-8.0.0.src/build
 
-# turn on options necessary
+# 打开必要的选项
 cmake -DCMAKE_INSTALL_PREFIX=/usr -DLLVM_ENABLE_CXX1Y=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_PEDANTIC=OFF ..
 
-# if possible, compile the llvm libraries through more processes.
+# 如果可以，使用多线程编译LLVM
 make -j
 
-# install the llvm core libraries
+# 安装LLVM核心开发库
 sudo make install
 ~~~
 
-## Runtime environment
+## 运行时环境
 
-If you just need to run this compiler to compile the alioth programming language, the link editor 'ld' will be the only need of you, fortunately most development environment has this program already installed.
+如果您只是需要运行此编译器来编译Alioth编程语言，只需要确保`ld`程序可用即可，幸运的是，多数开发环境都预装了此程序。
 
-## Command line Interface
-All command line parameters can be separated into two set.
-The compiler of the Alioth programming language can be started by the command line. You can control the behaviors of the compiler by passing command line parameters.
+## 命令行接口
 
-Here I'll show you some common usage of this compiler, for more information, please view the [Alioth Compiler Manual](doc/Alioth%20Compiler%20Manual.md).
+所有的命令行参数被分为两类。
 
-The common command format to compile several modules into a target as follow:
+Alioth编译器可以从命令行启动。您可以传入不同的命令行参数来控制编译器的行为。
+
+我会向您展示一些此编译器的常见使用方法，要了解详细使用方法，请参考[Alioth编译器手册](doc/Alioth编译器手册.md)。
+
+将若干模块编译成为一个目标的最常见指令格式如下:
 
 ~~~bash
 #!/bin/bash
@@ -65,18 +69,18 @@ The common command format to compile several modules into a target as follow:
 aliothc module1 module2 module3 : target
 ~~~
 
-Just as the simple as you seeing, `module1 module2 module3` were three assumed names representing three modules, then the colon is a indicator indicates the following string "`target`" is the name of the target of this compiling mission.
+如您所见，就是这么简单，`module1 module2 module3`被视为三个模块的名称，接下来的冒号是一个指示器，指示接下来的字符串`target`是本次编译任务的目标的名字。
 
-You can arrange the order of these four parameters any how you like it. Yes, four parameters, the indicator and the target name are combined to be one single parameter.
+您可以随意安排这四个命令行参数的顺序。没错，四个参数，指示器和目标名称被联合成为一个参数，他们的顺序不能改变。
 
 ![](doc/res/img/firstmodule.gif)
 
-If the target you are going to compile will use all modules in the work space you have written, you can leave the module name list blank and let the compiler find all modules available and compile them.
+如果您正要编译的目标将会使用当前工作空间中您所写的所有模块，您可以不指定模块名表，让编译器找到所有的可用模块，并编译它们。
 
 ![](doc/res/img/targetonly.gif)
 
-Note that if you miss the entry method in modules or you done it on purpos, compiler will not give you an error, it compiles all modules into a static link library and store it into the `arc` sub space instead.
+请注意，如果您漏写了入口方法，或您故意为之，编译器不会给您报告一个错误，而是将所有模块编译到一个静态链接库中，并存储在`arc`子空间中。
 
 ![](doc/res/img/static.gif)
 
-That's all, enjoy coding, and have fun changing the world ^_^
+就这样，祝您享受编码及改变世界的过程 ^_^
