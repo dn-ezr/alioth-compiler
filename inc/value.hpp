@@ -13,20 +13,21 @@ struct value_t;
 using $value = agent<value_t>;
 using values = chainz<$value>;
 
-/** @enum addr_t : 描述运算值的地址类型 */
+/**
+ * @enum addr_t : 描述运算值的地址类型 
+ */
 enum addr_t { 
     /** 描述立即数，没有地址, value即值(特别的，结构体使用指针) */
-    none, 
+    none,
     
     /** 描述直接寻址, value 是 值的地址 */
-    direct, 
+    direct,
     
     /** 描述二级寻址， value 是代理体指针 */
-    indirect, 
+    indirect,
     
     /** 描述代理寻址, value 是可执行的成员运算 */
-    proxy 
-
+    proxy
 };
 
 /** 
@@ -52,6 +53,13 @@ struct value_t : basic_thing {
          *  proxy (simple|struct) -> function
          **/
         llvm::Value* value;
+
+        /**
+         * @member setter : 设置器
+         * @desc :
+         *  给proxy类型的值专用的设置器，对应于有参数的成员运算符
+         */
+        llvm::Function* setter;
 
         /**
          * @member host : 宿主

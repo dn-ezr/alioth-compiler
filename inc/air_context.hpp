@@ -42,6 +42,51 @@ namespace metattr {
 };
 
 /**
+ * @struct exe_scope : 执行作用域
+ * @desc :
+ *  执行作用域用于在语义层次表达作用域
+ */
+struct exe_scope : public basic_thing {
+
+    public:
+
+        /** @enum type_t : 作用域类型 */
+        enum type_t {
+            Normal, // 普通的作用域，流控制语句会穿过这些作用域
+            Stream, // 流式的作用域，break语句可以抵达这些作用域
+            Circle, // 环状的作用域，continue,break语句可以抵达这些作用域
+            Origin, // 源作用域，return语句可以抵达这些作用域
+        };
+
+    public:
+
+        /** 
+         * @member type : 作用域的类型 */
+        const type_t type;
+
+        /**
+         * @member scope : 语法作用域 */
+        const $scope scope;
+
+        /** 
+         * @member parent : 上层作用域 */
+        const $scope parent;
+
+        /** 
+         * @member elements : 具名元素 */ 
+        map<string, $element> elements;
+
+        /**
+         * @member unnamed_values : 无名值 */
+        chainz<$value> unnamed_values;
+
+    public:
+        exe_scope( $scope sc, type_t ty );
+
+};
+using $exe_scope = agent<exe_scope>;
+
+/**
  * @class AirContext : AIR上下文
  * @desc :
  *  AIR上下文用于在全局管理可能被重用的类型信息。
@@ -84,20 +129,24 @@ class AirContext : public llvm::LLVMContext {
         std::map<std::string,llvm::StructType*> named_types;
 
         /**
-         * @member element_values : 具名元素表 */
-        std::map<$element,llvm::Value*> element_values;
-
-        /**
          * @member method_attrs : 方法属性 */
         std::map<$metdef,metattrs> method_attrs;
 
         /**
-         * @member scoped_elements : 作用域包裹的元素 */
-        std::map<$scope,map<string, $element>> scoped_elements;
+         * @member op_attrs : 运算符属性 */
+        std::map<$opdef,metattrs> op_attrs;
 
         /**
-         * @member scoped_values : 作用域包裹的无名量 */
-        std::map<$scope,chainz<$value>> scoped_values;
+         * @member scopes : 执行流作用域 */
+        map<$scope,$exe_scope> scopes;
+
+        /**
+         * @member element_values : 具名元素表 */
+        std::map<$element,llvm::Value*> element_values;
+
+        /**
+         * @member scope_cleaned_flag : 作用域清理标志 */
+        bool scope_cleaned_flag;
 
     public:
 
@@ -183,6 +232,33 @@ class AirContext : public llvm::LLVMContext {
         bool generateOutput( std::shared_ptr<llvm::Module> mod, ostream& os, bool ir );
 
         /**
+         * @method enter : 进入作用域
+         * @desc :
+         *  进入执行流作用域，在scopes中填写对应执行流作用域控制块
+         *  重复调用此函数将不会创建多余的控制块
+         */
+        $exe_scope enter($scope, exe_scope::type_t);
+
+        /**
+         * @method leave : 离开作用域
+         * @desc :
+         *  离开一个执行流作用域，此方法仅用于删除控制块
+         */
+        void leave($scope);
+
+        /**
+         * @method $sc : 检索执行流作用域
+         * @desc :
+         *  检索执行流作用域，若作用域不存在，则返回空
+         *  若scope没有执行作用域，自动向上搜索，直到找到执行作用域或scope为空为止
+         */
+        $exe_scope $sc($scope);
+
+        /**
+         * @method $el : 检索元素 */
+        $element $el( const string& name, $scope scope );
+
+        /**
          * @method $t : 获取类实例的类型 */
         llvm::StructType* $t( $classdef );
 
@@ -213,6 +289,10 @@ class AirContext : public llvm::LLVMContext {
         /**
          * @member $a : 获取方法属性 */
         metattrs $a( $metdef );
+
+        /**
+         * @member $a : 获取运算符属性 */
+        metattrs $a( $opdef );
 
         /**
          * @method $ : 获取具名类型

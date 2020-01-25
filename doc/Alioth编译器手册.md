@@ -1,19 +1,19 @@
 ---
-title: Alioth Compiler Manual
+title: Alioth编译器手册
 author: GodGnidoc
-date: 2019/07/17
+date: 2019/12/29
 ---
 
-# 1. About this manual
+# 1. 关于本手册
 
-This manual is written for users of the compiler of the Alioth programming language. The corresponding compiler version is `V0.3.*`. This manual states all functions provided by the compiler and how to use them. This document is written in UTF8 encoding, formatted in markdown format.
+这份手册为Alioth编译器用户编纂。对应的编译器版本为`V0.3.*`。本手册描述了编译器所有的功能以及如何使用它们。这份文档使用`UTF8`编码编辑，格式为`markdown`。
 
-> Note:
-> &nbsp;&nbsp;&nbsp;&nbsp;The old version of this compiler was named "**aliothc**", the last letter 'c' means "**compiler**". But compiling is no more the only function of this program for now, so the program is renamed as "**alioth**", please type the correct command according the version of compiler you're using.
+> 注意:
+> &nbsp;&nbsp;&nbsp;&nbsp;老版本的编译器名为"**aliothc**"，其中最后一个字母'c'意为"**compiler**"即"**编译器**"。但现如今编译已经不再是此程序的所有功能了，所以编译器被重命名为"**alioth**，请注意根据您正在使用的版本键入正确的指令。
 
-- [1. About this manual](#1-about-this-manual)
-- [2. Basic concepts](#2-basic-concepts)
-  - [2.1. Target](#21-target)
+- [1. 关于本手册](#1-%e5%85%b3%e4%ba%8e%e6%9c%ac%e6%89%8b%e5%86%8c)
+- [2. 基本概念](#2-%e5%9f%ba%e6%9c%ac%e6%a6%82%e5%bf%b5)
+  - [2.1. 目标](#21-%e7%9b%ae%e6%a0%87)
     - [2.1.1. Auto](#211-auto)
     - [2.1.2. Executable](#212-executable)
     - [2.1.3. Static](#213-static)
@@ -67,21 +67,21 @@ This manual is written for users of the compiler of the Alioth programming langu
   - [Provide](#provide)
   - [Repository](#repository)
 
-# 2. Basic concepts
+# 2. 基本概念
 
-There are some basic concepts you need to know before you can properly use the compiler.
+在能正确使用编译器之前，您需要了解一些基本概念。
 
-Some of them has the same name as the other concept but carries different meaning, you can add prefixes to solve this problem within certain context if necessary, like "Alioth Repository", "Alioth Target" etc.
+其中有些概念与其他概念重名却拥有不同含义，如果必要的话您可以在特定的语境中添加前缀以解决类似问题，如`Alioth仓库`，`Alioth目标`等。
 
-## 2.1. Target
+## 2.1. 目标
 
-Unlike the common compilers always process some source documents as input and generate a file in certain format as output, the compiler of the Alioth programming language does more.
+不似其他编译器总是将一些源文档作为输入处理并产生一个某种格式的文件作为输出，Alioth编译器能完成更多工作。
 
-Basically you can just execute command to run the compiler to generate some output file from source documents. Furthermore you can start the compiler to host a repository or to pack up a package.
+最基础的，您可以执行指令来运行编译器从源文档产生一些输出文件。除此之外，你也可以启动编译器来托管一个仓库或打包一个程序包。
 
-A **target** is an object which is the reason why you run the compiler. May be the output file in format of static link library or dynamic link library or executable entity. May be the hosted repository or the package.
+**目标**即是您启动编译器的缘由。它可能是您所需的静态或动态链接库格式的文件或可执行体。也可能是即将被托管的仓库或程序包。
 
-In command line interface$_{cli}$, you must sepecfy the **target** by passing certain option to the compiler command line arguments.
+在命令行接口$_{cli}$，您必须向编译器命令行参数传入某些选项以指定**目标**。
 
 ### 2.1.1. Auto
 

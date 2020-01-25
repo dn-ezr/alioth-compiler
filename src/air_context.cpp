@@ -27,6 +27,10 @@
 
 namespace alioth {
 
+exe_scope::exe_scope( $scope sc, type_t ty ):scope(sc),type(ty),parent(sc->getScope()) {
+
+}
+
 AirContext::AirContext( string _arch, string _plat, Diagnostics& diag ):
     diagnostics(diag),arch(_arch),platform(_plat),targetMachine(nullptr) {
         using namespace llvm;
@@ -89,7 +93,7 @@ void AirContext::initInlineStructures() {
     );
 
     createGlobalStr("void");
-    createGlobalStr("boolean");
+    createGlobalStr("bool");
     createGlobalStr("uint8");
     createGlobalStr("uint16");
     createGlobalStr("uint32");
@@ -202,7 +206,6 @@ bool AirContext::translateEnumDefinition( $enumdef ) {
 }
 
 bool AirContext::translateMethodDefinition( $metdef def ) {
-    using namespace llvm;
 
     bool success = true;
 
@@ -213,6 +216,8 @@ bool AirContext::translateMethodDefinition( $metdef def ) {
 
 bool AirContext::translateOperatorDefinition( $opdef def ) {
     bool success = true;
+
+    module->getOrInsertFunction(SemanticContext::GetBinarySymbol(($node)def),$t(def));
     
     return success;
 }
@@ -231,13 +236,15 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
     auto builder = IRBuilder<>(bb);
     auto attrs = $a(def);
 
+    auto scope = enter(impl, exe_scope::Origin);
+
     /** 存储参数以获取地址 */
     auto argi = fp->arg_begin();
     if( attrs&metattr::retcm ) {
         $element rt = new element;
         rt->name = token("return");
         element_values[rt] = argi;
-        scoped_elements[impl][rt->name] = rt;
+        scope->elements[rt->name] = rt;
         argi++->setName("return");
     }
     if( attrs&metattr::tsarg ) {
@@ -253,7 +260,7 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
             ), eprototype::ptr, token("const")
         );
         element_values[ts] = argi;
-        scoped_elements[impl][ts->name] = ts;
+        scope->elements[ts->name] = ts;
         argi++->setName("this");
     }
     for( auto arg : impl->arguments ) {
@@ -264,7 +271,7 @@ bool AirContext::translateMethodImplementation( $metimpl impl ) {
             auto addr = element_values[arg] = builder.CreateAlloca($t(arg->proto));
             builder.CreateStore(argi,addr);
         }
-        scoped_elements[impl][arg->name] = arg;
+        scope->elements[arg->name] = arg;
         argi++;
     }
 
@@ -572,8 +579,7 @@ $value AirContext::translateConstantExpression( llvm::IRBuilder<>& builder, $con
         case VT::L::THIS : {
             auto impl = $impl(($statement)expr);
             if( !impl ) return internal_error, nullptr;
-            if( scoped_elements[impl].count("this") ) {
-                auto ts = scoped_elements[impl]["this"];
+            if( auto ts = $el("this", impl); ts ) {
                 $value value = new value_t;
                 value->addr = none;
                 value->proto = ts->proto;
@@ -689,6 +695,31 @@ bool AirContext::generateOutput( shared_ptr<llvm::Module> mod, ostream& os, bool
     return true;
 }
 
+$exe_scope AirContext::enter($scope scope, exe_scope::type_t type) {
+    if( scopes.count(scope) ) return scopes[scope];
+    return scopes[scope] = new exe_scope(scope,type);
+}
+
+void AirContext::leave($scope scope) {
+    scopes.erase(scope);
+}
+
+$exe_scope AirContext::$sc($scope scope) {
+    while( scope != nullptr ) {
+        if( scopes.count(scope) ) return scopes[scope];
+        scope = scope->getScope();
+    }
+    return nullptr;
+}
+
+$element AirContext::$el( const string& name, $scope scope ) {
+    for( auto esc = $sc(scope); esc; esc = $sc(esc->parent) ) {
+        if( esc->elements.count(name) )
+            return esc->elements[name];
+    }
+    return nullptr;
+}
+
 llvm::StructType* AirContext::$t( $classdef def ) {
     return $t("struct."+SemanticContext::GetBinarySymbol(($node)def));
 }
@@ -708,6 +739,37 @@ llvm::Type* AirContext::$t( $attrdef attr ) {
 }
 
 llvm::FunctionType* AirContext::$t( $metdef def ) {
+    using namespace llvm;
+
+    vector<Type*> args;
+    auto attrs = $a(def);
+    Type* ret = nullptr;
+    for( auto arg : def->arguments ) 
+        args.push_back($t(arg->proto));
+    if( attrs&metattr::tsarg )
+        args.insert(args.begin(), $t(SemanticContext::GetThisClassDef(($node)def))->getPointerTo());
+    if( attrs&metattr::retri ) {
+        args.push_back($t("unknown")->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    }else if( attrs&metattr::retst ) {
+        args.push_back($t(def->ret_proto)->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    } else if( attrs&metattr::retrf ) {
+        args.push_back($t("reference")->getPointerTo());
+        ret = Type::getInt32Ty(*this);
+    } else {
+        ret = $t(def->ret_proto);
+    }
+    auto ft = FunctionType::get(
+        ret,
+        args,
+        (bool)def->va_arg
+    );
+
+    return ft;
+}
+
+llvm::FunctionType* AirContext::$t( $opdef def ) {
     using namespace llvm;
 
     vector<Type*> args;
@@ -807,10 +869,25 @@ llvm::Type* AirContext::$t( $typeexpr type ) {
 metattrs AirContext::$a( $metdef def ) {
     if( method_attrs.count(def) ) return method_attrs[def];
 
-    auto& attrs = method_attrs[def];
+    auto& attrs = method_attrs[def] = 0;
 
     if( def->arguments.size() == 0 ) attrs |= metattr::noarg;
     if( not def->meta ) attrs |= metattr::tsarg;
+    if( def->ret_proto->dtype->is_type(UnknownType) ) attrs |= metattr::retri;
+    if( def->ret_proto->etype == eprototype::obj and def->ret_proto->dtype->is_type(StructType) ) attrs |= metattr::retst;
+    if( def->ret_proto->etype == eprototype::ref ) attrs |= metattr::retrf;
+    if( def->va_arg ) attrs |= metattr::vaarg;
+
+    return attrs;
+}
+
+metattrs AirContext::$a( $opdef def ) {
+    if( op_attrs.count(def) ) return op_attrs[def];
+
+    auto& attrs = op_attrs[def] = 0;
+
+    attrs |= metattr::tsarg;
+    if( def->arguments.size() == 0 ) attrs |= metattr::noarg;
     if( def->ret_proto->dtype->is_type(UnknownType) ) attrs |= metattr::retri;
     if( def->ret_proto->etype == eprototype::obj and def->ret_proto->dtype->is_type(StructType) ) attrs |= metattr::retst;
     if( def->ret_proto->etype == eprototype::ref ) attrs |= metattr::retrf;
