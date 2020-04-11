@@ -26,6 +26,8 @@ Alioth编译器被设计用于编译Alioth编程语言。
 
 编译器可以在`linux-x86_64`平台上被`g++-8`编译器正确编译，`g++-8`是一款支持`GNU C++17`标准的`C++`编译器。
 
+### 获取LLVM支持
+
 目前，此编译器的开发过程依赖于`LLVM-Core`项目提供的SDK,执行下列指令来建立基于LLVM的开发环境。
 
 ~~~bash
@@ -48,6 +50,10 @@ make -j
 # 安装LLVM核心开发库
 sudo make install
 ~~~
+
+### 获取Alex支持
+
+Alex是Alioth项目的子项目，用于从alex文法产生词法分析器和语法分析器，详情请查阅[GitHub仓库](https://github.com/dn-ezr/alex)。
 
 ## 运行时环境
 

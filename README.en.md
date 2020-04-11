@@ -24,6 +24,8 @@ Alioth Compiler is designed to compile the Alioth programming language.
 
 This compiler can be compiled correctly on platform of linux-x86_64 by "g++-8" which is a c++ compiler who supports c++17 standard.
 
+### Obtain the LLVM support
+
 Currently this compiler depends on the LLVM project, run the following commands to setup a development environment with the LLVM library avalible.
 
 ~~~bash
@@ -46,6 +48,10 @@ make -j
 # install the llvm core libraries
 sudo make install
 ~~~
+
+### Obtain the Alex support
+
+The Alex project is a sub-project of the Alioth project which is used to generate lexical parser and the syntax parser, for more information please check the [GitHub repository](https://github.com/dn-ezr/alex).
 
 ## Runtime environment
 

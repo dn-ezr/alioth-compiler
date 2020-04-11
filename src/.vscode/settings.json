@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "cstdio": "cpp",
+        "cstdlib": "cpp",
+        "cwchar": "cpp",
+        "exception": "cpp",
+        "algorithm": "cpp",
+        "cmath": "cpp",
+        "functional": "cpp",
+        "iterator": "cpp",
+        "memory": "cpp",
+        "numeric": "cpp",
+        "random": "cpp",
+        "*.tcc": "cpp",
+        "memory_resource": "cpp"
+    }
+}

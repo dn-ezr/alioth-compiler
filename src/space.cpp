@@ -11,7 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "ptree.hpp"
+#include "trie.hpp"
 
 namespace alioth {
 using namespace std;
@@ -664,35 +664,34 @@ fulldesc SpaceEngine::statDataSource( Uri uri ) {
     fulldesc desc;
     
     /** 准备主空间前缀树 */
-    ptree<srcdesc> tree;
-    tree[((string)getUri({flags:WORK})).data()].store({flags:WORK});
-    tree[((string)getUri({flags:ROOT})).data()].store({flags:ROOT});
+    trie<srcdesc> tree;
+    tree.set((string)getUri({flags:WORK}),{flags:WORK});
+    tree.set((string)getUri({flags:ROOT}),{flags:ROOT});
     for( auto& pub : enumeratePublishers() )
         for( auto& pkg : enumeratePackages(pub) )
             for(auto ver : enumerateVersions(pub,pkg) ) {
                 auto pos = ver.find("latest");
                 if( pos != string::npos ) ver.replace(pos,6, "^");
                 auto package = pub+"."+pkg+":"+ver;
-                tree[(pub+dirdvs+pkg+dirdvs+ver).data()].store({flags:APKG,package:package});
+                tree.set(pub+dirdvs+pkg+dirdvs+ver,{flags:APKG,package:package});
             }
 
     /** 检测主空间 */
-    if( auto main = tree.far(is.data()); !main or !main->getp() ) {
+    if( auto main = tree.reach(is); !main ) {
         return srcdesc::error;
     } else {
         /** 准备子空间前缀树 */
-        for( const auto& sub : enumerateContents(main->get()) )
-            (*main)[((string)getUri(sub)).data()].store(sub);
+        for( const auto& sub : enumerateContents(*main) )
+            tree.set(is+(string)getUri(sub), sub);
         /** 检测子空间 */
-        if( auto sub = tree.far(is.data()); !sub or !sub->getp() ) {
+        if( auto sub = tree.reach(is.data()); !sub ) {
             return srcdesc::error;
         } else {
-            auto& d = sub->get();
-            auto ds = (string)getUri(d);
+            auto ds = (string)getUri(*sub);
             return statDataSource({
-                flags: d.flags,
+                flags: sub->flags,
                 name: string(is.begin()+ds.size(),is.end()),
-                package: d.package
+                package: sub->package
             });
         }
     }
